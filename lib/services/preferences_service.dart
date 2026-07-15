@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/mood_tag.dart';
 
 /// 偏好设置服务
 /// 使用 shared_preferences 管理应用的本地配置
@@ -21,6 +23,7 @@ class PreferencesService {
   static const _keyThemeColorIndex = 'theme_color_index';
   static const _keyStreakDays = 'streak_days';
   static const _keyLastCheckInDate = 'last_check_in_date';
+  static const _keyCustomTags = 'custom_tags';
 
   /// 初始化，应在 app 启动时调用
   Future<void> init() async {
@@ -93,6 +96,29 @@ class PreferencesService {
 
   Future<void> setLastCheckInDate(String value) =>
       _prefsInstance.setString(_keyLastCheckInDate, value);
+
+  // ==================== 自定义标签 ====================
+
+  /// 获取自定义标签列表
+  List<MoodTag> getCustomTags() {
+    final jsonStr = _prefsInstance.getString(_keyCustomTags);
+    if (jsonStr == null || jsonStr.isEmpty) return [];
+    try {
+      final list = jsonDecode(jsonStr) as List;
+      return list
+          .map((e) => MoodTag.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 保存自定义标签列表
+  Future<void> setCustomTags(List<MoodTag> tags) async {
+    final jsonStr =
+        jsonEncode(tags.map((t) => t.toJson()).toList());
+    await _prefsInstance.setString(_keyCustomTags, jsonStr);
+  }
 
   // ==================== 打卡逻辑 ====================
 

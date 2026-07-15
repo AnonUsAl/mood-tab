@@ -11,6 +11,8 @@
 .idea/
 *.iml
 .dumate/
+.DS_Store
+.workbuddy/
 
 
 

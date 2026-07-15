@@ -251,10 +251,13 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
 
   /// 标签选择
   Widget _buildTagChips() {
+    final allTags = context.select<MoodProvider, List<MoodTag>>(
+      (p) => p.allTags,
+    );
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: MoodTags.presets.map((tag) {
+      children: allTags.map((tag) {
         final isSelected = _selectedTags.contains(tag.label);
         return GestureDetector(
           onTap: () {

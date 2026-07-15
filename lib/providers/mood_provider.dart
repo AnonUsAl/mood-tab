@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/mood_record.dart';
+import '../models/mood_tag.dart';
 import '../models/mood_type.dart';
 import '../services/database_service.dart';
 import '../services/preferences_service.dart';
@@ -34,11 +35,20 @@ class MoodProvider extends ChangeNotifier {
   /// 日记条数
   int get diaryCount => _diaryRecords.length;
 
+  /// 自定义标签列表
+  List<MoodTag> get customTags => MoodTags.customTags;
+
+  /// 所有标签（预设 + 自定义）
+  List<MoodTag> get allTags => MoodTags.allTags;
+
   /// 加载所有数据
   Future<void> loadAllData() async {
     _setLoading(true);
     await _prefs.init();
     _themeMode = _prefs.themeMode;
+    // 加载自定义标签到内存缓存
+    final customTags = _prefs.getCustomTags();
+    MoodTags.setCustomTags(customTags);
     _allRecords = await _dbService.getAllRecords();
     _todayRecords = await _dbService.getTodayRecords();
     _diaryRecords = await _dbService.getDiaryRecords();
@@ -49,6 +59,31 @@ class MoodProvider extends ChangeNotifier {
   Future<void> setThemeMode(String mode) async {
     _themeMode = mode;
     await _prefs.setThemeMode(mode);
+    notifyListeners();
+  }
+
+  // ==================== 自定义标签管理 ====================
+
+  /// 添加自定义标签
+  ///
+  /// [label] 标签名称，[emoji] 标签 emoji
+  /// 返回 true 表示添加成功，false 表示标签已存在
+  Future<bool> addCustomTag(String label, String emoji) async {
+    if (MoodTags.exists(label)) return false;
+    final tag = MoodTag(label: label, emoji: emoji, isCustom: true);
+    final updated = [...MoodTags.customTags, tag];
+    await _prefs.setCustomTags(updated);
+    MoodTags.setCustomTags(updated);
+    notifyListeners();
+    return true;
+  }
+
+  /// 删除自定义标签（按 label）
+  Future<void> deleteCustomTag(String label) async {
+    final updated =
+        MoodTags.customTags.where((t) => t.label != label).toList();
+    await _prefs.setCustomTags(updated);
+    MoodTags.setCustomTags(updated);
     notifyListeners();
   }
 

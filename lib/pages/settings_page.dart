@@ -15,6 +15,7 @@ import '../theme/app_theme.dart';
 import 'about_page.dart';
 import 'assessment_web_page.dart';
 import 'crisis_support_page.dart';
+import 'tag_management_page.dart';
 
 /// 设置页（我的）
 /// 个人信息、提醒设置、隐私锁、主题设置、数据管理、心理测评、关于作者
@@ -91,6 +92,12 @@ class _SettingsPageState extends State<SettingsPage> {
                   _buildSectionTitle('主题设置'),
                   const SizedBox(height: 8),
                   _buildThemeSection(),
+                  const SizedBox(height: 24),
+
+                  // 个性化
+                  _buildSectionTitle('个性化'),
+                  const SizedBox(height: 8),
+                  _buildPersonalizationSection(),
                   const SizedBox(height: 24),
 
                   // 数据管理
@@ -452,6 +459,28 @@ class _SettingsPageState extends State<SettingsPage> {
       _themeMode = mode;
     });
     _showSnackBar(mode == 'dark' ? '已切换至深色模式' : '已切换至浅色模式');
+  }
+
+  // ==================== 个性化 ====================
+
+  Widget _buildPersonalizationSection() {
+    return _buildCard(
+      children: [
+        _buildActionTile(
+          icon: Icons.label_outline,
+          iconColor: const Color(0xFF26A69A),
+          title: '标签管理',
+          subtitle: '自定义情绪触发标签',
+          isFirst: true,
+          isLast: true,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const TagManagementPage()),
+            );
+          },
+        ),
+      ],
+    );
   }
 
   // ==================== 数据管理 ====================
