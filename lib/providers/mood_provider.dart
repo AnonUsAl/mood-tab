@@ -221,8 +221,10 @@ class MoodProvider extends ChangeNotifier {
   Future<void> addMedication(Medication medication) async {
     _medications = [..._medications, medication];
     await _prefs.setMedications(_medications);
-    await _rescheduleAllMedicationReminders();
     notifyListeners();
+    try {
+      await _rescheduleAllMedicationReminders();
+    } catch (_) {}
   }
 
   /// 更新药物
@@ -231,16 +233,20 @@ class MoodProvider extends ChangeNotifier {
         .map((m) => m.id == medication.id ? medication : m)
         .toList();
     await _prefs.setMedications(_medications);
-    await _rescheduleAllMedicationReminders();
     notifyListeners();
+    try {
+      await _rescheduleAllMedicationReminders();
+    } catch (_) {}
   }
 
   /// 删除药物
   Future<void> deleteMedication(int id) async {
-    await _notifications.cancelMedicationReminder(id);
     _medications = _medications.where((m) => m.id != id).toList();
     await _prefs.setMedications(_medications);
     notifyListeners();
+    try {
+      await _notifications.cancelMedicationReminder(id);
+    } catch (_) {}
   }
 
   /// 切换药物启用状态
@@ -251,7 +257,9 @@ class MoodProvider extends ChangeNotifier {
             : m)
         .toList();
     await _prefs.setMedications(_medications);
-    await _rescheduleAllMedicationReminders();
     notifyListeners();
+    try {
+      await _rescheduleAllMedicationReminders();
+    } catch (_) {}
   }
 }
