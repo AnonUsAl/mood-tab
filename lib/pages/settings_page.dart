@@ -14,6 +14,7 @@ import '../services/database_service.dart';
 import '../services/preferences_service.dart';
 import '../theme/app_theme.dart';
 import 'about_page.dart';
+import 'software_info_page.dart';
 import 'assessment_web_page.dart';
 import 'crisis_support_page.dart';
 import 'medication_reminder_page.dart';
@@ -706,9 +707,25 @@ class _SettingsPageState extends State<SettingsPage> {
         _buildActionTile(
           icon: Icons.info_outline,
           iconColor: AppTheme.primaryColor,
+          title: '关于软件',
+          subtitle: '版本信息 · 更新日志 · 开源许可',
+          isFirst: true,
+          isLast: false,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const SoftwareInfoPage(),
+              ),
+            );
+          },
+        ),
+        _buildDivider(),
+        _buildActionTile(
+          icon: Icons.person_outline,
+          iconColor: const Color(0xFF8BE9C1),
           title: '关于作者',
           subtitle: '了解 mood-tab 背后的故事',
-          isFirst: true,
+          isFirst: false,
           isLast: true,
           onTap: () {
             Navigator.of(context).push(
