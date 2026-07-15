@@ -2,6 +2,7 @@ import 'dart:convert';
 import '../models/mood_type.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -113,7 +114,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   // 版本信息
                   Center(
                     child: Text(
-                      'mood-tab v2.0.0',
+                      'mood-tab v2.0.2',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppTheme.textHintOf(context),
                           ),
@@ -359,6 +360,10 @@ class _SettingsPageState extends State<SettingsPage> {
                 keyboardType: TextInputType.number,
                 maxLength: 4,
                 obscureText: true,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
+                ],
                 autofocus: true,
                 decoration: const InputDecoration(
                   hintText: '••••',

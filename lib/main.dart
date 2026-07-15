@@ -6,7 +6,9 @@ import 'pages/stats_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/mood_record_page.dart';
 import 'pages/splash_page.dart';
+import 'pages/privacy_lock_page.dart';
 import 'providers/mood_provider.dart';
+import 'services/preferences_service.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -45,22 +47,50 @@ class _AppEntrance extends StatefulWidget {
   State<_AppEntrance> createState() => _AppEntranceState();
 }
 
-class _AppEntranceState extends State<_AppEntrance> {
+class _AppEntranceState extends State<_AppEntrance>
+    with WidgetsBindingObserver {
+  final PreferencesService _preferences = PreferencesService();
   bool _showSplash = true;
+  bool _isLocked = false;
+  bool _preferencesReady = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<MoodProvider>().loadAllData();
     });
   }
 
-  void _onSplashDone() {
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_preferencesReady || _showSplash) return;
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      final hasValidPin = _preferences.pinCode.length == 4;
+      if (_preferences.privacyLockEnabled && hasValidPin && !_isLocked) {
+        setState(() => _isLocked = true);
+      }
+    }
+  }
+
+  Future<void> _onSplashDone() async {
     final provider = context.read<MoodProvider>();
     if (!provider.isLoading || provider.totalCount > 0) {
+      await _preferences.init();
+      if (!mounted) return;
+      final hasValidPin = _preferences.pinCode.length == 4;
       setState(() {
         _showSplash = false;
+        _preferencesReady = true;
+        _isLocked = _preferences.privacyLockEnabled && hasValidPin;
       });
     } else {
       Future.delayed(const Duration(milliseconds: 300), () {
@@ -73,6 +103,12 @@ class _AppEntranceState extends State<_AppEntrance> {
   Widget build(BuildContext context) {
     if (_showSplash) {
       return SplashPage(onAnimationEnd: _onSplashDone);
+    }
+    if (_isLocked) {
+      return PrivacyLockPage(
+        expectedPin: _preferences.pinCode,
+        onUnlocked: () => setState(() => _isLocked = false),
+      );
     }
     return const MainScaffold();
   }
