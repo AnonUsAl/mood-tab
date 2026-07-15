@@ -51,8 +51,8 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
             // 版本号
             Text(
               _packageInfo != null
-                  ? 'mood-tab v${_packageInfo!.version}'
-                  : 'mood-tab',
+                  ? '脑电波 v${_packageInfo!.version}'
+                  : '脑电波',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -385,7 +385,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
             subtitle: 'MIT License · 查看第三方依赖许可',
             onTap: () => showLicensePage(
               context: context,
-              applicationName: 'mood-tab',
+              applicationName: '脑电波',
               applicationVersion: _packageInfo?.version ?? '',
               applicationIcon: const Icon(Icons.favorite_rounded, size: 40, color: AppTheme.primaryColor),
             ),

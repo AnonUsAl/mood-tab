@@ -26,7 +26,7 @@ class MoodTabApp extends StatelessWidget {
       child: Consumer<MoodProvider>(
         builder: (context, provider, _) {
           return MaterialApp(
-            title: 'mood-tab',
+            title: '脑电波',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,

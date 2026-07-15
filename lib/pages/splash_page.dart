@@ -104,7 +104,7 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
               const SizedBox(height: 24),
               // app 名称
               const Text(
-                'mood-tab',
+                '脑电波',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,

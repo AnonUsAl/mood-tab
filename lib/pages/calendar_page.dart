@@ -5,6 +5,7 @@ import '../models/mood_type.dart';
 import '../providers/mood_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/intensity_dots.dart';
+import 'mood_record_page.dart';
 
 /// 日历视图页面
 /// 月历展示每日情绪颜色，点击某天查看当天所有记录
@@ -295,14 +296,44 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Widget _buildSelectedDayDetail() {
     if (_selectedDayRecords.isEmpty) {
+      // 无记录 — 显示补记按钮
+      final now = DateTime.now();
+      final isFuture = _selectedDate!.isAfter(DateTime(now.year, now.month, now.day));
+
       return Container(
-        height: 80,
+        height: 100,
         alignment: Alignment.center,
-        child: Text(
-          '这天没有记录',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textHintOf(context),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              isFuture ? '未来的日期还没到来' : '这天没有记录',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.textHintOf(context),
+                  ),
+            ),
+            if (!isFuture) ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => MoodRecordPage(initialDate: _selectedDate!),
+                    ),
+                  );
+                  if (result == true) {
+                    _loadMonthData();
+                  }
+                },
+                icon: const Icon(Icons.event_note, size: 16),
+                label: const Text('补记这天的心情'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppTheme.primaryColor,
+                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                ),
               ),
+            ],
+          ],
         ),
       );
     }
@@ -314,9 +345,35 @@ class _CalendarPageState extends State<CalendarPage> {
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
-            child: Text(
-              '${_selectedDate!.month}月${_selectedDate!.day}日 · ${_selectedDayRecords.length} 条记录',
-              style: Theme.of(context).textTheme.titleMedium,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${_selectedDate!.month}月${_selectedDate!.day}日 · ${_selectedDayRecords.length} 条记录',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                // 继续补记按钮
+                TextButton.icon(
+                  onPressed: () async {
+                    final result = await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => MoodRecordPage(initialDate: _selectedDate!),
+                      ),
+                    );
+                    if (result == true) {
+                      _loadMonthData();
+                    }
+                  },
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('追加'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.primaryColor,
+                    textStyle: const TextStyle(fontSize: 12),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
             ),
           ),
           Expanded(

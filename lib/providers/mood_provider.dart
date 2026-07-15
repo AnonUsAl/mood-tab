@@ -120,6 +120,7 @@ class MoodProvider extends ChangeNotifier {
     String? note,
     String? diary,
     required List<String> tags,
+    DateTime? createdAt,
   }) async {
     final record = MoodRecord(
       moodType: moodType,
@@ -127,7 +128,7 @@ class MoodProvider extends ChangeNotifier {
       note: note,
       diary: diary,
       tags: tags,
-      createdAt: DateTime.now(),
+      createdAt: createdAt ?? DateTime.now(),
     );
     await _dbService.insertRecord(record);
     await loadAllData();

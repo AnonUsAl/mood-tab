@@ -57,7 +57,7 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       _privacyLockEnabled = _prefs.privacyLockEnabled;
       _themeMode = _prefs.themeMode;
-      _version = 'mood-tab v${packageInfo.version}';
+      _version = '脑电波 v${packageInfo.version}';
     });
   }
 
@@ -724,7 +724,7 @@ class _SettingsPageState extends State<SettingsPage> {
           icon: Icons.person_outline,
           iconColor: const Color(0xFF8BE9C1),
           title: '关于作者',
-          subtitle: '了解 mood-tab 背后的故事',
+          subtitle: '了解脑电波背后的故事',
           isFirst: false,
           isLast: true,
           onTap: () {
@@ -856,7 +856,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final file = File('${dir.path}/mood_tab_export.csv');
       await file.writeAsString(buffer.toString());
 
-      await Share.shareXFiles([XFile(file.path)], text: 'mood-tab 情绪记录导出');
+      await Share.shareXFiles([XFile(file.path)], text: '脑电波 情绪记录导出');
     } catch (e) {
       _showSnackBar('导出失败：$e');
     }
@@ -888,7 +888,7 @@ class _SettingsPageState extends State<SettingsPage> {
               pw.Header(
                 level: 0,
                 child: pw.Text(
-                  'mood-tab 情绪记录报告',
+                  '脑电波 情绪记录报告',
                   style: const pw.TextStyle(
                       fontSize: 24, fontWeight: pw.FontWeight.bold),
                 ),
@@ -921,7 +921,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final file = File('${dir.path}/mood_tab_report.pdf');
       await file.writeAsBytes(await pdf.save());
 
-      await Share.shareXFiles([XFile(file.path)], text: 'mood-tab 情绪记录报告');
+      await Share.shareXFiles([XFile(file.path)], text: '脑电波 情绪记录报告');
     } catch (e) {
       _showSnackBar('导出失败：$e');
     }
@@ -941,7 +941,7 @@ class _SettingsPageState extends State<SettingsPage> {
           '${dir.path}/mood_tab_backup_${DateTime.now().millisecondsSinceEpoch}.json');
       await file.writeAsString(jsonStr);
 
-      await Share.shareXFiles([XFile(file.path)], text: 'mood-tab 数据备份');
+      await Share.shareXFiles([XFile(file.path)], text: '脑电波 数据备份');
     } catch (e) {
       _showSnackBar('备份失败：$e');
     }

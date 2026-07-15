@@ -8,8 +8,11 @@ import 'crisis_support_page.dart';
 
 /// 情绪记录页面
 /// 选择情绪类型 → 设置强度 → 选择标签 → 添加备注 → 写日记（可选） → 保存
+/// 支持补记：传入 initialDate 即可记录过去某天的情绪
 class MoodRecordPage extends StatefulWidget {
-  const MoodRecordPage({super.key});
+  final DateTime? initialDate;
+
+  const MoodRecordPage({super.key, this.initialDate});
 
   @override
   State<MoodRecordPage> createState() => _MoodRecordPageState();
@@ -24,6 +27,15 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
   bool _isSaving = false;
   bool _showDiary = false;
 
+  /// 补记日期（如果是补记模式）
+  DateTime? _backfillDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _backfillDate = widget.initialDate;
+  }
+
   @override
   void dispose() {
     _noteController.dispose();
@@ -33,9 +45,14 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isBackfill = _backfillDate != null;
+    final title = isBackfill
+        ? '补记 · ${_backfillDate!.month}月${_backfillDate!.day}日'
+        : '记录心情';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('记录心情'),
+        title: Text(title),
         actions: [
           TextButton(
             onPressed: _isSaving ? null : _onSave,
@@ -59,8 +76,32 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 8),
+              // 补记日期提示
+              if (_backfillDate != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.event_note, size: 16, color: AppTheme.primaryColor),
+                      const SizedBox(width: 6),
+                      Text(
+                        '补记 ${_backfillDate!.year}年${_backfillDate!.month}月${_backfillDate!.day}日的情绪',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppTheme.primaryColor,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               // 步骤 1: 选择情绪
-              _buildSectionLabel('选择此刻的情绪'),
+              _buildSectionLabel(_backfillDate != null ? '那天的心情是什么？' : '选择此刻的情绪'),
               const SizedBox(height: 12),
               _buildMoodGrid(),
               const SizedBox(height: 28),
@@ -399,17 +440,20 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
           note: note.isEmpty ? null : note,
           diary: diary.isEmpty ? null : diary,
           tags: _selectedTags.toList(),
+          createdAt: _backfillDate,
         );
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${_selectedMood!.emoji} 已记录此刻的心情'),
+          content: Text(_backfillDate != null
+              ? '${_selectedMood!.emoji} 已补记${_backfillDate!.month}月${_backfillDate!.day}日的心情'
+              : '${_selectedMood!.emoji} 已记录此刻的心情'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppTheme.primaryColor,
         ),
       );
-      navigator.pop();
+      navigator.pop(true);
 
       // 如果是高强度负面情绪，延迟弹出关怀弹窗
       if (needsSupport) {
