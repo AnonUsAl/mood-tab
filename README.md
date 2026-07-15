@@ -27,6 +27,7 @@ mood-tab 是一款专注于治愈与陪伴的跨平台个人情绪记录软件�
 ### 个性化与隐私
 
 - **每日提醒**：可自定义时间的情绪记录提醒推送
+- **用药提醒**：添加药物名称、剂量、多个提醒时间，到点自动推送通知，支持启用/暂停
 - **连续打卡**：记录连续记录天数，培养情绪觉察习惯
 - **隐私锁**：PIN 码保护，防止他人查看情绪记录
 - **主题切换**：浅色 / 深色模式自由切换，全页面 context 感知颜色自适应
@@ -79,6 +80,7 @@ lib/
 │   ├── splash_page.dart               # 启动加载页（暖心语句）
 │   ├── crisis_support_page.dart       # 危机支持页（心理热线）
 │   ├── warm_words_page.dart           # 暖心寄语页（精神健康支持）
+│   ├── medication_reminder_page.dart  # 用药提醒页（药物管理）
 │   ├── assessment_web_page.dart       # 心理测评页（WebView 套壳）
 │   └── about_page.dart                # 关于作者页
 ├── theme/

@@ -15,6 +15,7 @@ import '../theme/app_theme.dart';
 import 'about_page.dart';
 import 'assessment_web_page.dart';
 import 'crisis_support_page.dart';
+import 'medication_reminder_page.dart';
 import 'tag_management_page.dart';
 import 'warm_words_page.dart';
 
@@ -140,58 +141,97 @@ class _SettingsPageState extends State<SettingsPage> {
   // ==================== 个人信息卡片 ====================
 
   Widget _buildProfileCard(MoodProvider provider) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppTheme.primaryColor,
-            AppTheme.primaryLight,
+    final userName = provider.userName;
+    final displayName = userName.isNotEmpty ? userName : '点击设置昵称';
+
+    return GestureDetector(
+      onTap: () => _editUserName(),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppTheme.primaryColor,
+              AppTheme.primaryLight,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            // 头像（有昵称时显示首字，否则显示默认图标）
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Center(
+                child: userName.isNotEmpty
+                    ? Text(
+                        userName.characters.first.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.person,
+                        size: 36,
+                        color: Colors.white,
+                      ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            // 昵称 + 统计信息
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          displayName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.edit,
+                        size: 16,
+                        color: Colors.white.withValues(alpha: 0.7),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      _buildStatItem(
+                        '${provider.totalCount}',
+                        '记录总数',
+                      ),
+                      const SizedBox(width: 24),
+                      _buildStatItem(
+                        '${_prefs.streakDays}',
+                        '连续打卡',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        children: [
-          // 头像占位
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Icon(
-              Icons.person,
-              size: 36,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(width: 16),
-          // 统计信息
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    _buildStatItem(
-                      '${provider.totalCount}',
-                      '记录总数',
-                    ),
-                    const SizedBox(width: 24),
-                    _buildStatItem(
-                      '${_prefs.streakDays}',
-                      '连续打卡',
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -222,6 +262,65 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // ==================== 分区标题 ====================
 
+  /// 编辑用户昵称
+  Future<void> _editUserName() async {
+    final provider = context.read<MoodProvider>();
+    final controller = TextEditingController(text: provider.userName);
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('设置昵称'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 12,
+            decoration: const InputDecoration(
+              hintText: '请输入你的昵称',
+              counterText: '',
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (value) {
+              // 实时更新不需要，点击保存时读取
+            },
+          ),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          actions: [
+            if (provider.userName.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  Navigator.of(ctx).pop('__clear__');
+                },
+                child: const Text('清除'),
+              ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(ctx).pop(controller.text.trim());
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result == '__clear__') {
+      await provider.setUserName('');
+      _showSnackBar('已清除昵称');
+    } else if (result != null && result.isNotEmpty) {
+      await provider.setUserName(result);
+      _showSnackBar('昵称已更新');
+    }
+  }
+
+  // ==================== 分区标题（原） ====================
+
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 4),
@@ -238,10 +337,12 @@ class _SettingsPageState extends State<SettingsPage> {
   // ==================== 提醒设置 ====================
 
   Widget _buildReminderSection() {
+    final medCount = context.watch<MoodProvider>().medications.length;
+
     return _buildCard(
       children: [
         SwitchListTile(
-          title: const Text('每日提醒'),
+          title: const Text('每日情绪提醒'),
           subtitle: const Text('每天定时提醒你记录情绪'),
           value: _reminderEnabled,
           activeThumbColor: AppTheme.primaryColor,
@@ -263,7 +364,7 @@ class _SettingsPageState extends State<SettingsPage> {
             }
           },
         ),
-        if (_reminderEnabled)
+        if (_reminderEnabled) ...[
           ListTile(
             leading:
                 const Icon(Icons.access_time, color: AppTheme.primaryColor),
@@ -277,10 +378,30 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16),
             shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(16)),
+              borderRadius: BorderRadius.zero,
             ),
             onTap: () => _pickTime(),
           ),
+          _buildDivider(),
+        ] else
+          _buildDivider(),
+        _buildActionTile(
+          icon: Icons.medication_outlined,
+          iconColor: const Color(0xFFEF5350),
+          title: '用药提醒',
+          subtitle: medCount > 0
+              ? '$medCount 种药物 · 点击管理'
+              : '添加药物，按时服药提醒',
+          isFirst: false,
+          isLast: true,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const MedicationReminderPage(),
+              ),
+            );
+          },
+        ),
       ],
     );
   }
@@ -752,6 +873,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               pw.SizedBox(height: 20),
+              if (provider.userName.isNotEmpty)
+                pw.Text('用户：${provider.userName}'),
               pw.Text('导出时间：${DateTime.now().toString().substring(0, 19)}'),
               pw.Text('记录总数：${records.length} 条'),
               pw.SizedBox(height: 20),

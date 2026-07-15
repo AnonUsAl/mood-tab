@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
+import '../models/medication.dart';
 import '../models/mood_record.dart';
 import '../models/mood_tag.dart';
 import '../models/mood_type.dart';
 import '../services/database_service.dart';
+import '../services/notification_service.dart';
 import '../services/preferences_service.dart';
 
 /// 应用全局状态管理
@@ -10,6 +12,7 @@ import '../services/preferences_service.dart';
 class MoodProvider extends ChangeNotifier {
   final DatabaseService _dbService = DatabaseService();
   final PreferencesService _prefs = PreferencesService();
+  final NotificationService _notifications = NotificationService();
 
   List<MoodRecord> _allRecords = [];
   List<MoodRecord> _todayRecords = [];
@@ -19,12 +22,20 @@ class MoodProvider extends ChangeNotifier {
   /// 主题模式：'light' 或 'dark'
   String _themeMode = 'light';
 
+  /// 用户昵称
+  String _userName = '';
+
+  /// 药物列表
+  List<Medication> _medications = [];
+
   List<MoodRecord> get allRecords => _allRecords;
   List<MoodRecord> get todayRecords => _todayRecords;
   List<MoodRecord> get diaryRecords => _diaryRecords;
   bool get isLoading => _isLoading;
   String get themeMode => _themeMode;
   bool get isDarkMode => _themeMode == 'dark';
+  String get userName => _userName;
+  List<Medication> get medications => _medications;
 
   /// 今日记录条数
   int get todayCount => _todayRecords.length;
@@ -46,6 +57,8 @@ class MoodProvider extends ChangeNotifier {
     _setLoading(true);
     await _prefs.init();
     _themeMode = _prefs.themeMode;
+    _userName = _prefs.userName;
+    _medications = _prefs.getMedications();
     // 加载自定义标签到内存缓存
     final customTags = _prefs.getCustomTags();
     MoodTags.setCustomTags(customTags);
@@ -59,6 +72,13 @@ class MoodProvider extends ChangeNotifier {
   Future<void> setThemeMode(String mode) async {
     _themeMode = mode;
     await _prefs.setThemeMode(mode);
+    notifyListeners();
+  }
+
+  /// 设置用户昵称
+  Future<void> setUserName(String name) async {
+    _userName = name;
+    await _prefs.setUserName(name);
     notifyListeners();
   }
 
@@ -159,6 +179,79 @@ class MoodProvider extends ChangeNotifier {
 
   void _setLoading(bool value) {
     _isLoading = value;
+    notifyListeners();
+  }
+
+  // ==================== 药物提醒管理 ====================
+
+  /// 重新调度所有启用药物的提醒通知
+  Future<void> _rescheduleAllMedicationReminders() async {
+    await _notifications.cancelAllMedicationReminders();
+
+    // 重新设置每日情绪提醒（因为 cancelAll 会清除它）
+    if (_prefs.dailyReminderEnabled) {
+      await _notifications.scheduleDailyReminder(
+        _prefs.dailyReminderHour,
+        _prefs.dailyReminderMinute,
+      );
+    }
+
+    // 为每个启用的药物设置提醒
+    for (final med in _medications) {
+      if (!med.enabled) continue;
+      for (int i = 0; i < med.times.length && i < Medication.maxTimes; i++) {
+        final parts = med.times[i].split(':');
+        if (parts.length != 2) continue;
+        final hour = int.tryParse(parts[0]);
+        final minute = int.tryParse(parts[1]);
+        if (hour == null || minute == null) continue;
+
+        await _notifications.scheduleMedicationReminder(
+          notificationId: med.notificationIdFor(i),
+          name: med.name,
+          dosage: med.dosage,
+          hour: hour,
+          minute: minute,
+        );
+      }
+    }
+  }
+
+  /// 添加药物
+  Future<void> addMedication(Medication medication) async {
+    _medications = [..._medications, medication];
+    await _prefs.setMedications(_medications);
+    await _rescheduleAllMedicationReminders();
+    notifyListeners();
+  }
+
+  /// 更新药物
+  Future<void> updateMedication(Medication medication) async {
+    _medications = _medications
+        .map((m) => m.id == medication.id ? medication : m)
+        .toList();
+    await _prefs.setMedications(_medications);
+    await _rescheduleAllMedicationReminders();
+    notifyListeners();
+  }
+
+  /// 删除药物
+  Future<void> deleteMedication(int id) async {
+    await _notifications.cancelMedicationReminder(id);
+    _medications = _medications.where((m) => m.id != id).toList();
+    await _prefs.setMedications(_medications);
+    notifyListeners();
+  }
+
+  /// 切换药物启用状态
+  Future<void> toggleMedicationEnabled(int id) async {
+    _medications = _medications
+        .map((m) => m.id == id
+            ? m.copyWith(enabled: !m.enabled)
+            : m)
+        .toList();
+    await _prefs.setMedications(_medications);
+    await _rescheduleAllMedicationReminders();
     notifyListeners();
   }
 }

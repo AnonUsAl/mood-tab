@@ -75,13 +75,16 @@ class _HomePageState extends State<HomePage> {
       greeting = '晚上好';
     }
 
+    final userName = context.read<MoodProvider>().userName;
+    final greetingText = userName.isNotEmpty ? '$greeting，$userName' : greeting;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            greeting,
+            greetingText,
             style: Theme.of(context).textTheme.headlineMedium,
           ),
           const SizedBox(height: 4),

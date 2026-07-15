@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/medication.dart';
 import '../models/mood_tag.dart';
 
 /// 偏好设置服务
@@ -24,6 +25,8 @@ class PreferencesService {
   static const _keyStreakDays = 'streak_days';
   static const _keyLastCheckInDate = 'last_check_in_date';
   static const _keyCustomTags = 'custom_tags';
+  static const _keyUserName = 'user_name';
+  static const _keyMedications = 'medications';
 
   /// 初始化，应在 app 启动时调用
   Future<void> init() async {
@@ -118,6 +121,37 @@ class PreferencesService {
     final jsonStr =
         jsonEncode(tags.map((t) => t.toJson()).toList());
     await _prefsInstance.setString(_keyCustomTags, jsonStr);
+  }
+
+  // ==================== 用户名 ====================
+
+  /// 用户昵称，未设置时返回空字符串
+  String get userName => _prefsInstance.getString(_keyUserName) ?? '';
+
+  Future<void> setUserName(String value) =>
+      _prefsInstance.setString(_keyUserName, value);
+
+  // ==================== 药物提醒 ====================
+
+  /// 获取药物列表
+  List<Medication> getMedications() {
+    final jsonStr = _prefsInstance.getString(_keyMedications);
+    if (jsonStr == null || jsonStr.isEmpty) return [];
+    try {
+      final list = jsonDecode(jsonStr) as List;
+      return list
+          .map((e) => Medication.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// 保存药物列表
+  Future<void> setMedications(List<Medication> medications) async {
+    final jsonStr =
+        jsonEncode(medications.map((m) => m.toJson()).toList());
+    await _prefsInstance.setString(_keyMedications, jsonStr);
   }
 
   // ==================== 打卡逻辑 ====================
