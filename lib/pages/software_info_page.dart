@@ -153,7 +153,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
           '🌱 情绪花园 — 每条记录长出一朵花',
           '☀️ 情绪天气播报 — 首页天气预报式卡片',
           '🔧 药物刷新修复 — notifyListeners 顺序修正',
-          '📦 关于作者本地化 — 离线可用',
+          '📦 关于作者页面优化',
         ],
         isLatest: true,
       ),
