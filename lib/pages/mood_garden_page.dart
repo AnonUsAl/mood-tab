@@ -21,17 +21,31 @@ class MoodGardenPage extends StatefulWidget {
 class _MoodGardenPageState extends State<MoodGardenPage> {
   List<MoodRecord> _recentRecords = [];
   bool _isLoading = false;
+  MoodProvider? _providerRef;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _providerRef = context.read<MoodProvider>();
+      _providerRef!.addListener(_onProviderChanged);
+      _loadData();
+    });
+  }
+
+  @override
+  void dispose() {
+    _providerRef?.removeListener(_onProviderChanged);
+    super.dispose();
+  }
+
+  void _onProviderChanged() {
     _loadData();
   }
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     final provider = context.read<MoodProvider>();
-    // 加载最近30天的记录
     _recentRecords = await provider.getRecentRecords(30);
     setState(() => _isLoading = false);
   }
@@ -157,22 +171,42 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
   /// 花园画布 — 用 CustomPainter 绘制花朵
   Widget _buildGardenCanvas() {
     return Container(
-      height: 360,
+      height: 380,
       decoration: BoxDecoration(
         color: AppTheme.cardBgOf(context),
         borderRadius: BorderRadius.circular(16),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: CustomPaint(
-          painter: _GardenPainter(
-            records: _recentRecords,
-            isDark: context.read<MoodProvider>().isDarkMode,
-          ),
-          size: Size.infinite,
+        child: Stack(
+          children: [
+            CustomPaint(
+              painter: _GardenPainter(
+                records: _recentRecords,
+                isDark: context.read<MoodProvider>().isDarkMode,
+              ),
+            ),
+            _buildButterflyAnimation(),
+            _buildStarAnimation(),
+          ],
         ),
       ),
     );
+  }
+
+  /// 蝴蝶动画
+  Widget _buildButterflyAnimation() {
+    if (_recentRecords.length < 5) return const SizedBox.shrink();
+    
+    return const _ButterflyAnimation();
+  }
+
+  /// 星星动画（夜间模式）
+  Widget _buildStarAnimation() {
+    final isDark = context.read<MoodProvider>().isDarkMode;
+    if (!isDark || _recentRecords.isEmpty) return const SizedBox.shrink();
+    
+    return const _StarAnimation();
   }
 
   /// 花语解读（颜色→情绪对照表）
@@ -424,5 +458,126 @@ class _GardenPainter extends CustomPainter {
   @override
   bool shouldRepaint(_GardenPainter oldDelegate) {
     return oldDelegate.records != records || oldDelegate.isDark != isDark;
+  }
+}
+
+/// 蝴蝶飞舞动画
+class _ButterflyAnimation extends StatefulWidget {
+  const _ButterflyAnimation();
+
+  @override
+  State<_ButterflyAnimation> createState() => _ButterflyAnimationState();
+}
+
+class _ButterflyAnimationState extends State<_ButterflyAnimation>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _xAnimation;
+  late Animation<double> _yAnimation;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    )..repeat(reverse: true);
+
+    _xAnimation = Tween<double>(begin: 0.1, end: 0.8).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
+    );
+
+    _yAnimation = Tween<double>(begin: 0.2, end: 0.5).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0, 1)),
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0, 1)),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Positioned(
+          left: MediaQuery.of(context).size.width * _xAnimation.value,
+          top: 380 * _yAnimation.value,
+          child: Transform.scale(
+            scale: _scaleAnimation.value,
+            child: const Text(
+              '🦋',
+              style: TextStyle(fontSize: 24),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// 星星闪烁动画（夜间模式）
+class _StarAnimation extends StatefulWidget {
+  const _StarAnimation();
+
+  @override
+  State<_StarAnimation> createState() => _StarAnimationState();
+}
+
+class _StarAnimationState extends State<_StarAnimation>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        _buildStar(0.15, 0.1, 1.0),
+        _buildStar(0.35, 0.15, 0.7),
+        _buildStar(0.55, 0.08, 0.9),
+        _buildStar(0.75, 0.12, 0.6),
+        _buildStar(0.85, 0.18, 0.8),
+      ],
+    );
+  }
+
+  Widget _buildStar(double left, double top, double delay) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final opacity = (math.sin(_controller.value * math.pi * 2 + delay) + 1) / 2;
+        return Positioned(
+          left: MediaQuery.of(context).size.width * left,
+          top: 380 * top,
+          child: Opacity(
+            opacity: opacity * 0.8,
+            child: const Text('⭐', style: TextStyle(fontSize: 12)),
+          ),
+        );
+      },
+    );
   }
 }

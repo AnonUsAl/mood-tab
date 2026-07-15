@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+export 'color_extensions.dart';
 
 /// 单组主题色方案
 class ThemeColorScheme {

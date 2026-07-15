@@ -28,6 +28,11 @@ class MoodProvider extends ChangeNotifier {
   /// 药物列表
   List<Medication> _medications = [];
 
+  /// 打卡状态
+  bool _hasCheckedInToday = false;
+  int _checkinStreak = 0;
+  int _totalCheckins = 0;
+
   List<MoodRecord> get allRecords => _allRecords;
   List<MoodRecord> get todayRecords => _todayRecords;
   List<MoodRecord> get diaryRecords => _diaryRecords;
@@ -36,6 +41,9 @@ class MoodProvider extends ChangeNotifier {
   bool get isDarkMode => _themeMode == 'dark';
   String get userName => _userName;
   List<Medication> get medications => _medications;
+  bool get hasCheckedInToday => _hasCheckedInToday;
+  int get checkinStreak => _checkinStreak;
+  int get totalCheckins => _totalCheckins;
 
   /// 今日记录条数
   int get todayCount => _todayRecords.length;
@@ -59,13 +67,25 @@ class MoodProvider extends ChangeNotifier {
     _themeMode = _prefs.themeMode;
     _userName = _prefs.userName;
     _medications = _prefs.getMedications();
-    // 加载自定义标签到内存缓存
     final customTags = _prefs.getCustomTags();
     MoodTags.setCustomTags(customTags);
     _allRecords = await _dbService.getAllRecords();
     _todayRecords = await _dbService.getTodayRecords();
     _diaryRecords = await _dbService.getDiaryRecords();
+    _hasCheckedInToday = await _dbService.hasCheckedInToday();
+    _checkinStreak = await _dbService.getCheckinStreak();
+    _totalCheckins = await _dbService.getTotalCheckins();
     _setLoading(false);
+  }
+
+  /// 今日打卡
+  Future<void> checkinToday() async {
+    if (_hasCheckedInToday) return;
+    await _dbService.insertCheckin(DateTime.now());
+    _hasCheckedInToday = true;
+    _checkinStreak = await _dbService.getCheckinStreak();
+    _totalCheckins = await _dbService.getTotalCheckins();
+    notifyListeners();
   }
 
   /// 切换主题模式
@@ -134,6 +154,12 @@ class MoodProvider extends ChangeNotifier {
     await loadAllData();
   }
 
+  /// 更新一条已有记录
+  Future<void> updateRecord(MoodRecord record) async {
+    await _dbService.updateRecord(record);
+    await loadAllData();
+  }
+
   /// 删除一条记录
   Future<void> deleteRecord(int id) async {
     await _dbService.deleteRecord(id);
@@ -192,8 +218,7 @@ class MoodProvider extends ChangeNotifier {
     // 重新设置每日情绪提醒（因为 cancelAll 会清除它）
     if (_prefs.dailyReminderEnabled) {
       await _notifications.scheduleDailyReminder(
-        _prefs.dailyReminderHour,
-        _prefs.dailyReminderMinute,
+        _prefs.dailyReminderTimes,
       );
     }
 

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
 /// 暖心寄语页面
-/// 为精神类疾病患者提供温暖的支持与鼓励
+/// 为精神类疾病患者提供科学认知与温暖支持
 class WarmWordsPage extends StatefulWidget {
   const WarmWordsPage({super.key});
 
@@ -39,7 +39,7 @@ class _WarmWordsPageState extends State<WarmWordsPage> {
               ),
               const SizedBox(height: 4),
               Text(
-                '点击下方卡片展开寄语',
+                '点击下方卡片了解更多',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: AppTheme.textSecondaryOf(context),
                     ),
@@ -87,7 +87,7 @@ class _WarmWordsPageState extends State<WarmWordsPage> {
           const SizedBox(height: 8),
           const Text(
             '无论你正在经历什么，都值得被温柔以待。\n'
-            '这些话语写给每一个在与心灵风暴搏斗的你。',
+            '了解它，才能更好地与自己相处。',
             style: TextStyle(
               color: Colors.white,
               fontSize: 14,
@@ -174,35 +174,65 @@ class _WarmWordsPageState extends State<WarmWordsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      ...msg.paragraphs.map((p) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Text(
-                              p,
+                      // 科普一下
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: msg.color.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.auto_stories, size: 16, color: msg.color),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '科普一下',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: msg.color,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              msg.science,
                               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    height: 1.8,
+                                    height: 1.7,
                                     color: AppTheme.textPrimaryOf(context),
                                   ),
                             ),
-                          )),
-                      const SizedBox(height: 4),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // 安慰支持
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: msg.color.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(10),
+                          color: msg.color.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: msg.color.withValues(alpha: 0.15),
+                            width: 1,
+                          ),
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.favorite, size: 14, color: msg.color),
-                            const SizedBox(width: 6),
+                            Icon(Icons.favorite, size: 16, color: msg.color),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                msg.footer,
+                                msg.comfort,
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 14,
                                   color: msg.color,
                                   fontWeight: FontWeight.w500,
+                                  height: 1.5,
                                 ),
                               ),
                             ),
@@ -283,16 +313,16 @@ class _WarmMessage {
   final String condition;
   final String subtitle;
   final Color color;
-  final List<String> paragraphs;
-  final String footer;
+  final String science;  // 简短科普 (~50-100字)
+  final String comfort;  // 安慰支持 (~30字)
 
   const _WarmMessage({
     required this.emoji,
     required this.condition,
     required this.subtitle,
     required this.color,
-    required this.paragraphs,
-    required this.footer,
+    required this.science,
+    required this.comfort,
   });
 }
 
@@ -303,83 +333,79 @@ const List<_WarmMessage> _warmMessages = [
     condition: '双相情感障碍',
     subtitle: '在躁狂与抑郁的浪潮中寻找平衡',
     color: Color(0xFF7E57C2),
-    paragraphs: [
-      '双相情感障碍的朋友，你好，我想对你说——',
-      '你的世界可能在高潮与低谷之间剧烈摆荡，那种感觉就像被抛向云端又摔向地面。躁狂时的你精力充沛、思维奔涌，仿佛能征服世界；抑郁时的你却连起床的力气都没有，世界变得灰暗而沉重。',
-      '但请记得，这不是你的错，也不是你「想太多」或「太脆弱」。这是大脑化学物质的节律在作祟，而你一直在努力与它共处，这份坚韧本身就是了不起的勇气。',
-      '那些你以为自己在浪费生命的低谷期，其实是你身体在积蓄力量。那些你觉得失控的亢奋期，也是你生命力旺盛的证明。你不是两个人，你是一个在两极之间寻找平衡的旅人。',
-      '坚持服药、定期复诊、规律作息——这些看似枯燥的事，正是你与疾病和解的方式。总有一天，浪潮会变得温柔一些，你会学会在风暴中航行。',
-    ],
-    footer: '你的每一次坚持，都是在为更好的明天铺路。',
+    science: '双相情感障碍是一种以情绪极端波动为特征的精神疾病，患者在躁狂期精力旺盛、思维奔涌，在抑郁期则情绪低落、精力匮乏，两种状态交替或混合出现。',
+    comfort: '在浪潮之间寻找平衡，这本身就是了不起的勇气。',
   ),
   _WarmMessage(
     emoji: '🌧️',
     condition: '抑郁症',
     subtitle: '穿过那片灰色的迷雾',
     color: Color(0xFF5C6BC0),
-    paragraphs: [
-      '正在经历抑郁的朋友，你好，我想对你说——',
-      '我知道，现在的世界可能对你来说像蒙了一层灰。那些曾经让你快乐的事情变得索然无味，每天早晨醒来都像背着一块巨石。你可能觉得是自己懒、是自己不够好，但不是的——',
-      '抑郁不是性格缺陷，不是矫情，不是「想开点」就能好的。它是一场大脑的感冒，只不过这场感冒比普通的要漫长得多。你的疲惫、你的无力、你的迷茫，都是真实的症状，不是你的错。',
-      '哪怕今天你只是从床上爬起来喝了一杯水，那也是胜利。哪怕今天你什么都没做，只是活着度过了这一天，那也足够了。',
-      '灰色的迷雾会散的。也许不是今天，也许不是明天，但它终会散去。在那之前，请允许自己慢慢来，允许自己不够好。你已经很勇敢了。',
-    ],
-    footer: '活着本身，就是你最大的胜利。',
+    science: '抑郁症并非简单的"心情不好"，而是大脑神经递质失衡导致的持续情绪低落，核心症状包括兴趣丧失、精力减退和自我评价降低，严重时可出现自杀念头。',
+    comfort: '哪怕今天只是从床上起来喝了杯水，那也是胜利。',
   ),
   _WarmMessage(
     emoji: '💨',
     condition: '焦虑症',
     subtitle: '当担忧成为一种习惯',
     color: Color(0xFF26A69A),
-    paragraphs: [
-      '总是被焦虑困扰的朋友，你好，我想对你说——',
-      '你的大脑好像有一个永远关不掉的警报器，即使在安全的时刻也会拉响警报。心跳加速、手心出汗、呼吸急促、思绪翻涌——这些感觉真实而可怕，仿佛危险就在眼前。',
-      '但你的焦虑其实是大脑在过度保护你。它太想让你安全了，以至于把所有的「万一」都当成了「一定」。这不是你的弱点，而是你的神经系统太过尽心尽责。',
-      '当焦虑来袭时，试着告诉自己：「这只是警报响了，并不代表真的有危险。」然后慢慢呼吸，感受你的脚踩在地面上，你此时此刻是安全的。',
-      '你不需要消除所有焦虑才能好好生活。带着焦虑生活，同时不被它完全控制，这本身就是一种了不起的能力。你已经在做了，而且做得比你自己以为的要好。',
-    ],
-    footer: '不安的时刻终会过去，你已经度过了无数次。',
+    science: '焦虑症是大脑杏仁核过度激活的结果，它把"万一"当成"一定"，让身体持续处于"战斗或逃跑"的警报状态，表现为心跳加速、呼吸急促和无法控制的担忧。',
+    comfort: '警报响了不代表真的有危险，你此刻是安全的。',
   ),
   _WarmMessage(
     emoji: '🔄',
     condition: '强迫症',
     subtitle: '与反复出现的念头共处',
     color: Color(0xFFEC407A),
-    paragraphs: [
-      '被强迫思维困扰的朋友，你好，我想对你说——',
-      '那些反复出现的念头、不得不做的仪式，可能让你觉得自己很「奇怪」。但强迫症的本质是你的大脑在试图通过重复来获得安全感，它只是用了一种不太有效的方式。',
-      '那些侵入性的想法并不代表你这个人。念头只是念头，它不代表你的价值观，不代表你的本心，更不代表你会去做。大脑会随机产生各种想法，而你无法控制它的产出，但你可以选择如何回应。',
-      '每一次你忍住不去执行那个仪式，哪怕只多忍了一秒钟，都是一次进步。每一次你允许那个念头存在而不与它对抗，都是一次胜利。',
-      '康复不是强迫症完全消失，而是它不再掌控你的生活。你正在慢慢夺回方向盘，这需要时间，也值得等待。',
-    ],
-    footer: '念头只是念头，你比它强大得多。',
+    science: '强迫症的特征是反复出现的侵入性念头（强迫思维）和不得不执行的重复行为（强迫行为），大脑试图通过仪式化的重复来获得安全感，但效果短暂且形成恶性循环。',
+    comfort: '念头只是念头，不代表你的本心，你比它强大得多。',
   ),
   _WarmMessage(
     emoji: '🛡️',
     condition: '创伤后应激障碍',
     subtitle: '从过去的阴影中走向光',
     color: Color(0xFFFF7043),
-    paragraphs: [
-      '经历过创伤的朋友，你好，我想对你说——',
-      '那些闪回、噩梦、过度警觉，都是大脑在试图保护你——它记住那个可怕的经历，是想让你不再受伤害。只是这个保护机制太过敏感了，让你在安全的环境里也无法放松。',
-      '请知道，你经历过的那些事不是你的错。你当时的反应——无论是什么——都是你在极端情况下的求生本能。你活下来了，这就够了。',
-      '创伤不会定义你是谁。你是幸存者，不是受害者。那些破碎的经历可以被慢慢整合进你的人生故事里，成为你坚韧的注脚，而不是困住你的牢笼。',
-      '疗愈是可能的。那些画面会慢慢变得模糊，那些触发点会慢慢失去力量。你值得一个不被过去绑架的未来。',
-    ],
-    footer: '你已经熬过了最黑暗的时刻，接下来只会更好。',
+    science: 'PTSD 是大脑对创伤事件的"过度保护"反应，杏仁核持续警觉，导致闪回、噩梦和回避行为——大脑记住了危险，却在安全的环境中也无法放松。',
+    comfort: '你活下来了，这就够了。你值得一个不被过去绑架的未来。',
   ),
   _WarmMessage(
     emoji: '⚡',
     condition: '注意力缺陷多动障碍',
     subtitle: '在纷乱的思绪中找到自己的节奏',
     color: Color(0xFFFFA726),
-    paragraphs: [
-      'ADHD 的朋友，你好，我想对你说——',
-      '你的大脑像一台同时开了无数个标签页的浏览器，有时候卡顿，有时候过热，但也有很多时刻能迸发出惊人的创造力和能量。',
-      '你可能在成长过程中听过太多次「你就是不努力」「你怎么又走神了」「你就不能专心一点」。但 ADHD 不是态度问题，不是懒惰，不是智商问题——它是神经发育的差异，你的大脑就是用不同的方式处理信息。',
-      '那些忘带的东西、错过的时间、没做完的事情，不是因为你不在乎，而是你的执行功能系统和别人不一样。这不代表你做不到，只是你需要找到属于自己的方法。',
-      '你的发散性思维、你的 hyperfocus、你的创造力——这些都是 ADHD 给你的礼物。当你找到适合自己的节奏，你会发现自己能做到远超想象的事情。',
-    ],
-    footer: '你的大脑不是坏掉了，只是运转方式不同而已。',
+    science: 'ADHD 是神经发育的差异而非态度问题，核心表现为注意力易分散、冲动和多动，但也伴随超专注能力和发散性思维——大脑只是用不同的方式处理信息。',
+    comfort: '你的大脑不是坏掉了，只是运转方式不同而已。',
+  ),
+  _WarmMessage(
+    emoji: '🌀',
+    condition: '精神分裂症',
+    subtitle: '在混乱的感知中守护真实的自我',
+    color: Color(0xFF546E7A),
+    science: '精神分裂症是一种严重的精神障碍，主要表现为幻觉（如听到不存在的声音）、妄想（坚信不真实的想法）和思维紊乱，并非"人格分裂"，而是大脑感知与认知功能的失调。',
+    comfort: '那些声音不是真实的，但你的勇气是真实的。',
+  ),
+  _WarmMessage(
+    emoji: '🪞',
+    condition: '解离性人格障碍',
+    subtitle: '在多重面孔背后守护同一个灵魂',
+    color: Color(0xFF8D6E63),
+    science: '解离性人格障碍（曾称多重人格障碍）是极端创伤后形成的心理防御机制，患者在不同人格状态间转换，每个部分承载着不同的记忆和情感，目的是保护核心自我免受进一步伤害。',
+    comfort: '每一个部分都在保护你，你们是一个团队。',
+  ),
+  _WarmMessage(
+    emoji: '🫣',
+    condition: '社交恐惧症',
+    subtitle: '当他人的目光变成风暴',
+    color: Color(0xFF78909C),
+    science: '社交恐惧症不只是"害羞"，而是对社交场景产生强烈的恐惧和回避，大脑将人际互动误判为威胁，导致心跳加速、出汗颤抖，甚至完全回避一切社交。',
+    comfort: '你的紧张不是懦弱，是大脑在过度保护你。',
+  ),
+  _WarmMessage(
+    emoji: '🍽️',
+    condition: '进食障碍',
+    subtitle: '在食物与情绪之间找到平衡',
+    color: Color(0xFFAB47BC),
+    science: '进食障碍（如厌食症、暴食症）是以异常饮食行为为特征的精神疾病，核心是对体重和体型的过度关注与控制，往往掩盖了更深层的情绪需求和自我认同困境。',
+    comfort: '你的价值不由体重定义，你值得被温柔以待。',
   ),
 ];

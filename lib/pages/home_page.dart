@@ -79,7 +79,8 @@ class _HomePageState extends State<HomePage> {
       greeting = '晚上好';
     }
 
-    final userName = context.read<MoodProvider>().userName;
+    final provider = context.read<MoodProvider>();
+    final userName = provider.userName;
     final greetingText = userName.isNotEmpty ? '$greeting，$userName' : greeting;
 
     return Padding(
@@ -87,9 +88,15 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            greetingText,
-            style: Theme.of(context).textTheme.headlineMedium,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                greetingText,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              _buildCheckinButton(provider),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
@@ -99,6 +106,73 @@ class _HomePageState extends State<HomePage> {
                 ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCheckinButton(MoodProvider provider) {
+    return GestureDetector(
+      onTap: () async {
+        if (!provider.hasCheckedInToday) {
+          await provider.checkinToday();
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('打卡成功！🎉')),
+            );
+          }
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: provider.hasCheckedInToday
+              ? AppTheme.primaryLight
+              : AppTheme.primaryColor,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Text(
+              provider.hasCheckedInToday ? '✅' : '📅',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              provider.hasCheckedInToday
+                  ? '已打卡'
+                  : '打卡',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: provider.hasCheckedInToday
+                    ? AppTheme.primaryColor
+                    : Colors.white,
+              ),
+            ),
+            if (provider.checkinStreak > 0) ...[
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: provider.hasCheckedInToday
+                      ? AppTheme.primaryColor.withValues(alpha: 0.2)
+                      : Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${provider.checkinStreak}天',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: provider.hasCheckedInToday
+                        ? AppTheme.primaryColor
+                        : Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -340,83 +414,90 @@ class _HomePageState extends State<HomePage> {
     final moodColor = Color(record.moodType.colorValue);
     final timeStr = _formatTime(record.createdAt);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.cardBgOf(context),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: moodColor.withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 2),
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => MoodRecordPage(existingRecord: record),
           ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // 情绪 emoji
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: moodColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(14),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBgOf(context),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: moodColor.withValues(alpha: 0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 2),
             ),
-            child: Center(
-              child: Text(
-                record.moodType.emoji,
-                style: const TextStyle(fontSize: 28),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: moodColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Center(
+                child: Text(
+                  record.moodType.emoji,
+                  style: const TextStyle(fontSize: 28),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 14),
-          // 情绪信息
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        record.moodType.label,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(width: 8),
+                      IntensityDots(
+                        intensity: record.intensity,
+                        color: moodColor,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  if (record.note != null && record.note!.isNotEmpty)
                     Text(
-                      record.moodType.label,
-                      style: Theme.of(context).textTheme.titleMedium,
+                      record.note!,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  else
+                    Text(
+                      timeStr,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    const SizedBox(width: 8),
-                    IntensityDots(
-                      intensity: record.intensity,
-                      color: moodColor,
+                  if (record.note != null && record.note!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      timeStr,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppTheme.textHintOf(context),
+                            fontSize: 11,
+                          ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 4),
-                if (record.note != null && record.note!.isNotEmpty)
-                  Text(
-                    record.note!,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  )
-                else
-                  Text(
-                    timeStr,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                if (record.note != null && record.note!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    timeStr,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.textHintOf(context),
-                          fontSize: 11,
-                        ),
-                  ),
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -12,7 +12,9 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-  static const int _dailyReminderId = 0;
+  /// 每日情绪提醒的 ID 起始值（最多支持 10 个时间点）
+  static const int _dailyReminderIdBase = 100;
+  static const int _maxDailyReminderTimes = 10;
   static const String _channelId = 'daily_reminder';
   static const String _channelName = '每日情绪记录提醒';
 
@@ -66,31 +68,16 @@ class NotificationService {
     return true;
   }
 
-  /// 设置每日定时提醒
+  /// 设置每日定时提醒（支持多个时间点）
   ///
-  /// [hour] 小时（0-23），[minute] 分钟（0-59）
+  /// [times] 时间列表，格式 ["08:00", "20:00"]
   /// 每天在指定时间发送通知，如果今天该时间已过则从明天开始
-  Future<void> scheduleDailyReminder(int hour, int minute) async {
+  Future<void> scheduleDailyReminder(List<String> times) async {
     if (!_initialized) await init();
     await requestPermissions();
 
-    // 先取消已有的提醒
-    await cancelReminder();
-
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      hour,
-      minute,
-    );
-
-    // 如果今天的时间已过，从明天开始
-    if (scheduled.isBefore(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
-    }
+    // 先取消已有的每日提醒
+    await cancelDailyReminders();
 
     const androidDetails = AndroidNotificationDetails(
       _channelId,
@@ -112,24 +99,47 @@ class NotificationService {
       iOS: iosDetails,
     );
 
-    await _plugin.zonedSchedule(
-      _dailyReminderId,
-      '记录此刻的心情 🌿',
-      '花一分钟，写下今天的情绪吧',
-      scheduled,
-      details,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
+    for (int i = 0; i < times.length && i < _maxDailyReminderTimes; i++) {
+      final parts = times[i].split(':');
+      if (parts.length != 2) continue;
+      final hour = int.tryParse(parts[0]);
+      final minute = int.tryParse(parts[1]);
+      if (hour == null || minute == null) continue;
+
+      final now = tz.TZDateTime.now(tz.local);
+      var scheduled = tz.TZDateTime(
+        tz.local,
+        now.year,
+        now.month,
+        now.day,
+        hour,
+        minute,
+      );
+
+      // 如果今天的时间已过，从明天开始
+      if (scheduled.isBefore(now)) {
+        scheduled = scheduled.add(const Duration(days: 1));
+      }
+
+      await _plugin.zonedSchedule(
+        _dailyReminderIdBase + i,
+        '记录此刻的心情 🌿',
+        '花一分钟，写下今天的情绪吧',
+        scheduled,
+        details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    }
   }
 
-  /// 取消每日提醒
-  Future<void> cancelReminder() async {
-    // cancelAll 清除所有已展示的通知和待调度通知
-    // 确保新通知弹出时挤掉上一个
-    await _plugin.cancelAll();
+  /// 取消所有每日情绪提醒（不影响药物提醒）
+  Future<void> cancelDailyReminders() async {
+    for (int i = 0; i < _maxDailyReminderTimes; i++) {
+      await _plugin.cancel(_dailyReminderIdBase + i);
+    }
   }
 
   // ==================== 药物提醒 ====================
@@ -209,8 +219,8 @@ class NotificationService {
 
   /// 取消所有药物提醒（保留每日情绪提醒）
   Future<void> cancelAllMedicationReminders() async {
-    // cancelAll 会清除包括每日情绪提醒在内的所有通知
-    // 调用方需要在之后重新设置每日情绪提醒
+    // 先保存每日提醒的调度，清除所有后再重新设置
+    // 由于无法单独清除药物通知，需要清除全部后重新调度每日提醒
     await _plugin.cancelAll();
   }
 }

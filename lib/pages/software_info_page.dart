@@ -146,6 +146,26 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v2.5.0',
+        date: '2025-07',
+        changes: [
+          '❤️ 暖心寄语重构 — 科普认知 + 安慰支持',
+          '🧠 新增精神分裂症、解离性人格障碍、社交恐惧症、进食障碍',
+          '📅 日历补记 — 补录过去日期的心情',
+          '🔧 快捷操作卡片布局优化',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
+        version: 'v2.4.0',
+        date: '2025-07',
+        changes: [
+          '📱 应用名称改为"脑电波"',
+          'ℹ️ 关于软件版本页',
+          '🔢 动态版本号显示（package_info_plus）',
+        ],
+      ),
+      _ChangelogEntry(
         version: 'v2.3.0',
         date: '2025-07',
         changes: [
@@ -153,9 +173,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
           '🌱 情绪花园 — 每条记录长出一朵花',
           '☀️ 情绪天气播报 — 首页天气预报式卡片',
           '🔧 药物刷新修复 — notifyListeners 顺序修正',
-          '📦 关于作者页面优化',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v2.2.0',

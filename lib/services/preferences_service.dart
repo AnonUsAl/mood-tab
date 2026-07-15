@@ -16,8 +16,10 @@ class PreferencesService {
   // ==================== 存储键名 ====================
 
   static const _keyDailyReminderEnabled = 'daily_reminder_enabled';
-  static const _keyDailyReminderHour = 'daily_reminder_hour';
-  static const _keyDailyReminderMinute = 'daily_reminder_minute';
+  static const _keyDailyReminderTimes = 'daily_reminder_times'; // JSON list of "HH:mm"
+  // 旧 key（向后兼容迁移）
+  static const _keyDailyReminderHourLegacy = 'daily_reminder_hour';
+  static const _keyDailyReminderMinuteLegacy = 'daily_reminder_minute';
   static const _keyPrivacyLockEnabled = 'privacy_lock_enabled';
   static const _keyPinCode = 'pin_code';
   static const _keyThemeMode = 'theme_mode'; // 'light' | 'dark'
@@ -48,17 +50,33 @@ class PreferencesService {
   Future<void> setDailyReminderEnabled(bool value) =>
       _prefsInstance.setBool(_keyDailyReminderEnabled, value);
 
-  int get dailyReminderHour =>
-      _prefsInstance.getInt(_keyDailyReminderHour) ?? 20;
+  /// 每日提醒时间列表，格式 ["08:00", "20:00"]
+  /// 默认 ["20:00"]
+  List<String> get dailyReminderTimes {
+    final jsonStr = _prefsInstance.getString(_keyDailyReminderTimes);
+    if (jsonStr != null && jsonStr.isNotEmpty) {
+      try {
+        return (jsonDecode(jsonStr) as List).cast<String>();
+      } catch (_) {}
+    }
+    // 向后兼容：从旧的单一 hour/minute 迁移
+    final hour = _prefsInstance.getInt(_keyDailyReminderHourLegacy);
+    final minute = _prefsInstance.getInt(_keyDailyReminderMinuteLegacy);
+    if (hour != null) {
+      final time = '${hour.toString().padLeft(2, '0')}:${(minute ?? 0).toString().padLeft(2, '0')}';
+      // 迁移并清除旧 key
+      setDailyReminderTimes([time]);
+      _prefsInstance.remove(_keyDailyReminderHourLegacy);
+      _prefsInstance.remove(_keyDailyReminderMinuteLegacy);
+      return [time];
+    }
+    return ['20:00'];
+  }
 
-  Future<void> setDailyReminderHour(int value) =>
-      _prefsInstance.setInt(_keyDailyReminderHour, value);
-
-  int get dailyReminderMinute =>
-      _prefsInstance.getInt(_keyDailyReminderMinute) ?? 0;
-
-  Future<void> setDailyReminderMinute(int value) =>
-      _prefsInstance.setInt(_keyDailyReminderMinute, value);
+  Future<void> setDailyReminderTimes(List<String> times) async {
+    final jsonStr = jsonEncode(times);
+    await _prefsInstance.setString(_keyDailyReminderTimes, jsonStr);
+  }
 
   // ==================== 隐私锁 ====================
 

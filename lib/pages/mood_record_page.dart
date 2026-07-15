@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/mood_record.dart';
 import '../models/mood_tag.dart';
 import '../models/mood_type.dart';
 import '../providers/mood_provider.dart';
@@ -9,10 +10,12 @@ import 'crisis_support_page.dart';
 /// 情绪记录页面
 /// 选择情绪类型 → 设置强度 → 选择标签 → 添加备注 → 写日记（可选） → 保存
 /// 支持补记：传入 initialDate 即可记录过去某天的情绪
+/// 支持编辑：传入 existingRecord 即可修改已有记录
 class MoodRecordPage extends StatefulWidget {
   final DateTime? initialDate;
+  final MoodRecord? existingRecord;
 
-  const MoodRecordPage({super.key, this.initialDate});
+  const MoodRecordPage({super.key, this.initialDate, this.existingRecord});
 
   @override
   State<MoodRecordPage> createState() => _MoodRecordPageState();
@@ -30,10 +33,26 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
   /// 补记日期（如果是补记模式）
   DateTime? _backfillDate;
 
+  /// 编辑的已有记录（如果是编辑模式）
+  MoodRecord? _editingRecord;
+
   @override
   void initState() {
     super.initState();
     _backfillDate = widget.initialDate;
+
+    // 编辑模式：回填已有记录数据
+    if (widget.existingRecord != null) {
+      _editingRecord = widget.existingRecord;
+      _selectedMood = _editingRecord!.moodType;
+      _intensity = _editingRecord!.intensity;
+      _selectedTags.addAll(_editingRecord!.tags);
+      _noteController.text = _editingRecord!.note ?? '';
+      _diaryController.text = _editingRecord!.diary ?? '';
+      if (_diaryController.text.isNotEmpty) {
+        _showDiary = true;
+      }
+    }
   }
 
   @override
@@ -46,9 +65,12 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
   @override
   Widget build(BuildContext context) {
     final isBackfill = _backfillDate != null;
-    final title = isBackfill
-        ? '补记 · ${_backfillDate!.month}月${_backfillDate!.day}日'
-        : '记录心情';
+    final isEditing = _editingRecord != null;
+    final title = isEditing
+        ? '修改心情'
+        : isBackfill
+            ? '补记 · ${_backfillDate!.month}月${_backfillDate!.day}日'
+            : '记录心情';
 
     return Scaffold(
       appBar: AppBar(
@@ -434,29 +456,45 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
 
     final note = _noteController.text.trim();
     final diary = _diaryController.text.trim();
-    await context.read<MoodProvider>().addRecord(
-          moodType: _selectedMood!,
-          intensity: _intensity,
-          note: note.isEmpty ? null : note,
-          diary: diary.isEmpty ? null : diary,
-          tags: _selectedTags.toList(),
-          createdAt: _backfillDate,
-        );
+
+    if (_editingRecord != null) {
+      // 编辑模式：更新已有记录
+      final updated = _editingRecord!.copyWith(
+        moodType: _selectedMood!,
+        intensity: _intensity,
+        note: note.isEmpty ? null : note,
+        diary: diary.isEmpty ? null : diary,
+        tags: _selectedTags.toList(),
+      );
+      await context.read<MoodProvider>().updateRecord(updated);
+    } else {
+      // 新建模式：新增记录
+      await context.read<MoodProvider>().addRecord(
+            moodType: _selectedMood!,
+            intensity: _intensity,
+            note: note.isEmpty ? null : note,
+            diary: diary.isEmpty ? null : diary,
+            tags: _selectedTags.toList(),
+            createdAt: _backfillDate,
+          );
+    }
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_backfillDate != null
-              ? '${_selectedMood!.emoji} 已补记${_backfillDate!.month}月${_backfillDate!.day}日的心情'
-              : '${_selectedMood!.emoji} 已记录此刻的心情'),
+          content: Text(_editingRecord != null
+              ? '${_selectedMood!.emoji} 已修改心情记录'
+              : _backfillDate != null
+                  ? '${_selectedMood!.emoji} 已补记${_backfillDate!.month}月${_backfillDate!.day}日的心情'
+                  : '${_selectedMood!.emoji} 已记录此刻的心情'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppTheme.primaryColor,
         ),
       );
       navigator.pop(true);
 
-      // 如果是高强度负面情绪，延迟弹出关怀弹窗
-      if (needsSupport) {
+      // 如果是高强度负面情绪且不是编辑模式，延迟弹出关怀弹窗
+      if (needsSupport && _editingRecord == null) {
         Future.delayed(const Duration(milliseconds: 300), () {
           if (navigator.mounted) {
             showCrisisSupportDialog(navigator.context);

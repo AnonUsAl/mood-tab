@@ -1,8 +1,9 @@
 import 'dart:convert';
-import '../models/mood_type.dart';
 import 'dart:io';
+import '../models/mood_type.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -35,7 +36,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final _dbService = DatabaseService();
 
   bool _reminderEnabled = false;
-  TimeOfDay _reminderTime = const TimeOfDay(hour: 20, minute: 0);
+  List<String> _reminderTimes = ['20:00'];
   bool _privacyLockEnabled = false;
   String _themeMode = 'light';
   String _version = '';
@@ -51,10 +52,7 @@ class _SettingsPageState extends State<SettingsPage> {
     await _prefs.init();
     setState(() {
       _reminderEnabled = _prefs.dailyReminderEnabled;
-      _reminderTime = TimeOfDay(
-        hour: _prefs.dailyReminderHour,
-        minute: _prefs.dailyReminderMinute,
-      );
+      _reminderTimes = _prefs.dailyReminderTimes;
       _privacyLockEnabled = _prefs.privacyLockEnabled;
       _themeMode = _prefs.themeMode;
       _version = '脑电波 v${packageInfo.version}';
@@ -348,7 +346,11 @@ class _SettingsPageState extends State<SettingsPage> {
       children: [
         SwitchListTile(
           title: const Text('每日情绪提醒'),
-          subtitle: const Text('每天定时提醒你记录情绪'),
+          subtitle: Text(
+            _reminderEnabled && _reminderTimes.isNotEmpty
+                ? '每天 ${_reminderTimes.length} 个时间点提醒你'
+                : '每天定时提醒你记录情绪',
+          ),
           value: _reminderEnabled,
           activeThumbColor: AppTheme.primaryColor,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -361,8 +363,7 @@ class _SettingsPageState extends State<SettingsPage> {
               _reminderEnabled = value;
             });
             if (value) {
-              await _prefs.setDailyReminderHour(_reminderTime.hour);
-              await _prefs.setDailyReminderMinute(_reminderTime.minute);
+              await _prefs.setDailyReminderTimes(_reminderTimes);
               _showSnackBar('已开启每日提醒');
             } else {
               _showSnackBar('已关闭每日提醒');
@@ -370,22 +371,58 @@ class _SettingsPageState extends State<SettingsPage> {
           },
         ),
         if (_reminderEnabled) ...[
-          ListTile(
-            leading:
-                const Icon(Icons.access_time, color: AppTheme.primaryColor),
-            title: const Text('提醒时间'),
-            trailing: Text(
-              '${_reminderTime.hour.toString().padLeft(2, '0')}:'
-              '${_reminderTime.minute.toString().padLeft(2, '0')}',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textSecondaryOf(context),
-                  ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.access_time, color: AppTheme.primaryColor, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '提醒时间',
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    ..._reminderTimes.map((time) => ActionChip(
+                      label: Text(time),
+                      labelStyle: TextStyle(
+                        color: AppTheme.primaryColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      avatar: const Icon(Icons.schedule, size: 16),
+                      onPressed: () => _editReminderTime(time),
+                      side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    )),
+                    if (_reminderTimes.length < 10)
+                      ActionChip(
+                        label: const Text('+ 添加时间'),
+                        labelStyle: TextStyle(
+                          color: AppTheme.textSecondaryOf(context),
+                        ),
+                        avatar: const Icon(Icons.add, size: 16),
+                        onPressed: _addReminderTime,
+                        side: BorderSide(
+                          color: AppTheme.dividerOf(context),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.zero,
-            ),
-            onTap: () => _pickTime(),
           ),
           _buildDivider(),
         ] else
@@ -411,17 +448,93 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _pickTime() async {
+  Future<void> _addReminderTime() async {
+    final lastTime = _reminderTimes.isNotEmpty ? _reminderTimes.last : '20:00';
+    final parts = lastTime.split(':');
+    final initial = TimeOfDay(
+      hour: int.tryParse(parts[0]) ?? 20,
+      minute: int.tryParse(parts[1]) ?? 0,
+    );
+
     final picked = await showTimePicker(
       context: context,
-      initialTime: _reminderTime,
+      initialTime: initial,
     );
     if (picked != null) {
-      await _prefs.setDailyReminderHour(picked.hour);
-      await _prefs.setDailyReminderMinute(picked.minute);
+      final timeStr = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+      if (_reminderTimes.contains(timeStr)) {
+        _showSnackBar('该时间已存在');
+        return;
+      }
+      final newTimes = [..._reminderTimes, timeStr];
+      newTimes.sort(); // 按时间排序
+      await _prefs.setDailyReminderTimes(newTimes);
       setState(() {
-        _reminderTime = picked;
+        _reminderTimes = newTimes;
       });
+      _showSnackBar('已添加提醒时间 $timeStr');
+    }
+  }
+
+  Future<void> _editReminderTime(String existingTime) async {
+    final parts = existingTime.split(':');
+    final initial = TimeOfDay(
+      hour: int.tryParse(parts[0]) ?? 20,
+      minute: int.tryParse(parts[1]) ?? 0,
+    );
+
+    // 先让用户选择：编辑或删除
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text('提醒时间 $existingTime'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'edit'),
+            child: const Text('修改时间'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'delete'),
+            child: const Text('删除此时间'),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'cancel'),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+
+    if (action == 'delete') {
+      final newTimes = _reminderTimes.where((t) => t != existingTime).toList();
+      if (newTimes.isEmpty) {
+        _showSnackBar('至少保留一个提醒时间');
+        return;
+      }
+      await _prefs.setDailyReminderTimes(newTimes);
+      setState(() {
+        _reminderTimes = newTimes;
+      });
+      _showSnackBar('已删除提醒时间 $existingTime');
+    } else if (action == 'edit') {
+      final picked = await showTimePicker(
+        context: context,
+        initialTime: initial,
+      );
+      if (picked != null) {
+        final timeStr = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+        if (timeStr != existingTime && _reminderTimes.contains(timeStr)) {
+          _showSnackBar('该时间已存在');
+          return;
+        }
+        final newTimes = _reminderTimes.map((t) => t == existingTime ? timeStr : t).toList();
+        newTimes.sort();
+        await _prefs.setDailyReminderTimes(newTimes);
+        setState(() {
+          _reminderTimes = newTimes;
+        });
+      }
     }
   }
 
@@ -837,6 +950,7 @@ class _SettingsPageState extends State<SettingsPage> {
       }
 
       final buffer = StringBuffer();
+      buffer.write('\uFEFF');
       buffer.writeln('日期,时间,情绪,强度,备注,标签,日记');
 
       for (final r in records) {
@@ -854,7 +968,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/mood_tab_export.csv');
-      await file.writeAsString(buffer.toString());
+      await file.writeAsString(buffer.toString(), encoding: const Utf8Codec());
 
       await Share.shareXFiles([XFile(file.path)], text: '脑电波 情绪记录导出');
     } catch (e) {
@@ -878,7 +992,36 @@ class _SettingsPageState extends State<SettingsPage> {
         return;
       }
 
+      _showSnackBar('正在生成报告...');
+
       final pdf = pw.Document();
+
+      pw.Font? font;
+      try {
+        final fontUrl = 'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf';
+        final response = await http.get(Uri.parse(fontUrl));
+        if (response.statusCode == 200) {
+          font = pw.Font.ttf(response.bodyBytes.buffer.asByteData());
+        }
+      } catch (_) {
+        try {
+          final fontUrl = 'https://fonts.googleapis.com/css2?family=Noto+Sans+SC&display=swap';
+          final response = await http.get(Uri.parse(fontUrl));
+          if (response.statusCode == 200) {
+            final regex = RegExp(r'url\(([^)]+)\)');
+            final match = regex.firstMatch(response.body);
+            if (match != null) {
+              final fontDataUrl = match.group(1)?.replaceAll('format("woff2")', '').trim();
+              if (fontDataUrl != null) {
+                final fontResponse = await http.get(Uri.parse(fontDataUrl));
+                if (fontResponse.statusCode == 200) {
+                  font = pw.Font.ttf(fontResponse.bodyBytes.buffer.asByteData());
+                }
+              }
+            }
+          }
+        } catch (_) {}
+      }
 
       pdf.addPage(
         pw.MultiPage(
@@ -889,15 +1032,16 @@ class _SettingsPageState extends State<SettingsPage> {
                 level: 0,
                 child: pw.Text(
                   '脑电波 情绪记录报告',
-                  style: const pw.TextStyle(
-                      fontSize: 24, fontWeight: pw.FontWeight.bold),
+                  style: font != null
+                      ? pw.TextStyle(font: font, fontSize: 24, fontWeight: pw.FontWeight.bold)
+                      : const pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
                 ),
               ),
               pw.SizedBox(height: 20),
               if (provider.userName.isNotEmpty)
-                pw.Text('用户：${provider.userName}'),
-              pw.Text('导出时间：${DateTime.now().toString().substring(0, 19)}'),
-              pw.Text('记录总数：${records.length} 条'),
+                pw.Text('用户：${provider.userName}', style: font != null ? pw.TextStyle(font: font) : null),
+              pw.Text('导出时间：${DateTime.now().toString().substring(0, 19)}', style: font != null ? pw.TextStyle(font: font) : null),
+              pw.Text('记录总数：${records.length} 条', style: font != null ? pw.TextStyle(font: font) : null),
               pw.SizedBox(height: 20),
               pw.TableHelper.fromTextArray(
                 context: context,
@@ -911,6 +1055,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     r.note ?? '',
                   ];
                 }).toList(),
+                headerStyle: font != null
+                    ? pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold)
+                    : const pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                cellStyle: font != null ? pw.TextStyle(font: font) : null,
               ),
             ];
           },

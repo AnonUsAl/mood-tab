@@ -22,13 +22,26 @@ class _CalendarPageState extends State<CalendarPage> {
   List<MoodRecord> _selectedDayRecords = [];
   Map<String, List<MoodRecord>> _monthRecords = {};
   bool _isLoading = false;
+  MoodProvider? _providerRef;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _providerRef = context.read<MoodProvider>();
+      _providerRef!.addListener(_onProviderChanged);
       _loadMonthData();
     });
+  }
+
+  @override
+  void dispose() {
+    _providerRef?.removeListener(_onProviderChanged);
+    super.dispose();
+  }
+
+  void _onProviderChanged() {
+    _loadMonthData();
   }
 
   Future<void> _loadMonthData() async {
