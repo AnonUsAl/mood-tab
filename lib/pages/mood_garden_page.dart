@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:provider/provider.dart';
 import '../models/mood_record.dart';
 import '../models/mood_type.dart';
 import '../providers/mood_provider.dart';
+import '../services/preferences_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/empty_state.dart';
 
-/// 情绪花园页面
-/// 每条情绪记录长出一朵花，花色映射情绪类型
-/// 最近7天无记录的花会枯萎（灰色半透明）
-/// 花园是情绪旅程的活地图
 class MoodGardenPage extends StatefulWidget {
   const MoodGardenPage({super.key});
 
@@ -19,15 +17,11 @@ class MoodGardenPage extends StatefulWidget {
   State<MoodGardenPage> createState() => _MoodGardenPageState();
 }
 
-/// 画笔类型
 enum BrushType {
   pen,
   eraser,
 }
 
-
-
-/// 一笔涂鸦数据
 class Stroke {
   final List<Offset> points;
   final Color color;
@@ -40,6 +34,28 @@ class Stroke {
     required this.size,
     required this.brushType,
   });
+
+  Map<String, dynamic> toJson() => {
+    'points': points.map((p) => {'dx': p.dx, 'dy': p.dy}).toList(),
+    'color': color.toARGB32(),
+    'size': size,
+    'brushType': brushType.name,
+  };
+
+  factory Stroke.fromJson(Map<String, dynamic> json) => Stroke(
+    points: (json['points'] as List)
+        .map((p) => Offset(
+              (p['dx'] as num).toDouble(),
+              (p['dy'] as num).toDouble(),
+            ))
+        .toList(),
+    color: Color(json['color'] as int),
+    size: (json['size'] as num).toDouble(),
+    brushType: BrushType.values.firstWhere(
+      (b) => b.name == json['brushType'],
+      orElse: () => BrushType.pen,
+    ),
+  );
 }
 
 class _MoodGardenPageState extends State<MoodGardenPage> {
@@ -50,8 +66,11 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
   BrushType _brushType = BrushType.pen;
   Color _brushColor = Colors.pink;
   double _brushSize = 4.0;
+  double _eraserSize = 12.0;
   List<Stroke> _strokes = [];
+  List<Stroke> _redoneStrokes = [];
   List<Offset> _currentPoints = [];
+  final GlobalKey _canvasKey = GlobalKey();
 
   @override
   void initState() {
@@ -60,6 +79,7 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
       _providerRef = context.read<MoodProvider>();
       _providerRef!.addListener(_onProviderChanged);
       _loadData();
+      _loadDoodles();
     });
   }
 
@@ -72,53 +92,102 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
   void _startDrawing(Offset point) {
     setState(() {
       _currentPoints = [point];
+      _redoneStrokes = [];
     });
   }
 
   void _draw(Offset point) {
-    if (_currentPoints.isEmpty) return;
     setState(() {
-      _currentPoints.add(point);
+      if (_currentPoints.isEmpty) {
+        _currentPoints = [point];
+      } else {
+        // 关键：创建新列表，而非原地 .add()，确保 shouldRepaint 检测到长度变化
+        _currentPoints = [..._currentPoints, point];
+      }
     });
   }
 
   void _endDrawing() {
-    if (_currentPoints.length >= 2) {
+    _commitCurrentStroke();
+  }
+
+  /// 提交当前正在画的笔迹（用于颜色/粗细切换时分段，保持旧色不变）
+  void _commitCurrentStroke() {
+    if (_currentPoints.isNotEmpty) {
       setState(() {
         _strokes.add(Stroke(
           points: List.from(_currentPoints),
           color: _brushColor,
-          size: _brushSize,
+          size: _activeSize,
           brushType: _brushType,
         ));
         _currentPoints = [];
+        _redoneStrokes = [];
       });
+      _saveDoodles();
     }
   }
 
   void _clearDrawing() {
     setState(() {
       _strokes = [];
+      _redoneStrokes = [];
       _currentPoints = [];
     });
+    _saveDoodles();
   }
 
   void _undoDrawing() {
     if (_strokes.isNotEmpty) {
       setState(() {
-        _strokes.removeLast();
+        _redoneStrokes.add(_strokes.removeLast());
       });
+      _saveDoodles();
+    }
+  }
+
+  void _redoDrawing() {
+    if (_redoneStrokes.isNotEmpty) {
+      setState(() {
+        _strokes.add(_redoneStrokes.removeLast());
+      });
+      _saveDoodles();
     }
   }
 
   void _toggleEraser() {
+    _commitCurrentStroke();
     setState(() {
       _brushType = _brushType == BrushType.pen ? BrushType.eraser : BrushType.pen;
     });
+    PreferencesService().setEraserSize(_eraserSize);
   }
+
+  double get _activeSize =>
+      _brushType == BrushType.eraser ? _eraserSize : _brushSize;
 
   void _onProviderChanged() {
     _loadData();
+  }
+
+  void _loadDoodles() {
+    try {
+      final json = jsonDecode(PreferencesService().gardenDoodles) as List;
+      final loaded = json
+          .map((e) => Stroke.fromJson(e as Map<String, dynamic>))
+          .toList();
+      // 同时恢复橡皮擦大小
+      final savedEraserSize = PreferencesService().eraserSize;
+      setState(() {
+        _strokes = loaded;
+        _eraserSize = savedEraserSize;
+      });
+    } catch (_) {}
+  }
+
+  void _saveDoodles() {
+    final json = jsonEncode(_strokes.map((s) => s.toJson()).toList());
+    PreferencesService().setGardenDoodles(json);
   }
 
   Future<void> _loadData() async {
@@ -153,39 +222,45 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
               );
             }
 
-            return RefreshIndicator(
-              onRefresh: _loadData,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '情绪花园',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '你的每一段心情，都是一朵花',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppTheme.textSecondaryOf(context),
-                          ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    _buildGardenStats(),
-                    const SizedBox(height: 20),
-
-                    _buildGardenCanvas(),
-                    const SizedBox(height: 16),
-
-                    _buildDrawingToolbar(),
-                    const SizedBox(height: 24),
-
-                    _buildFlowerLegend(),
-                  ],
+            return Column(
+              mainAxisSize: MainAxisSize.max,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '情绪花园',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '你的每一段心情，都是一朵花',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: AppTheme.textSecondaryOf(context),
+                            ),
+                      ),
+                      const SizedBox(height: 24),
+                      _buildGardenStats(),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ),
-              ),
+                _buildGardenCanvas(provider.isDarkMode),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      _buildDrawingToolbar(),
+                      const SizedBox(height: 24),
+                      _buildFlowerLegend(),
+                    ],
+                  ),
+                ),
+              ],
             );
           },
         ),
@@ -245,8 +320,9 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
     );
   }
 
-  Widget _buildGardenCanvas() {
+  Widget _buildGardenCanvas(bool isDark) {
     return Container(
+      key: _canvasKey,
       height: 380,
       decoration: BoxDecoration(
         color: AppTheme.cardBgOf(context),
@@ -256,53 +332,49 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
         borderRadius: BorderRadius.circular(16),
         child: Stack(
           children: [
-            CustomPaint(
-              painter: _GardenPainter(
-                records: _recentRecords,
-                isDark: context.read<MoodProvider>().isDarkMode,
+            RepaintBoundary(
+              child: CustomPaint(
+                size: const Size(double.infinity, double.infinity),
+                painter: _GardenPainter(
+                  records: _recentRecords,
+                  isDark: isDark,
+                ),
               ),
             ),
             _buildButterflyAnimation(),
-            _buildStarAnimation(),
-            _buildDrawingLayer(),
+            _buildStarAnimation(isDark),
+            _buildDrawingLayer(isDark),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDrawingLayer() {
-    return GestureDetector(
+  Widget _buildDrawingLayer(bool isDark) {
+    return Listener(
       behavior: HitTestBehavior.opaque,
-      onPanStart: (details) {
-        final renderBox = context.findRenderObject() as RenderBox;
-        final point = renderBox.globalToLocal(details.globalPosition);
-        _startDrawing(point);
+      onPointerDown: (event) {
+        _startDrawing(event.localPosition);
       },
-      onPanUpdate: (details) {
-        final renderBox = context.findRenderObject() as RenderBox;
-        final point = renderBox.globalToLocal(details.globalPosition);
-        _draw(point);
+      onPointerMove: (event) {
+        _draw(event.localPosition);
       },
-      onPanEnd: (_) {
+      onPointerUp: (_) {
         _endDrawing();
       },
-      onVerticalDragStart: (_) {},
-      onHorizontalDragStart: (_) {},
-      onVerticalDragUpdate: (_) {},
-      onHorizontalDragUpdate: (_) {},
-      onVerticalDragEnd: (_) {},
-      onHorizontalDragEnd: (_) {},
-      child: CustomPaint(
-        painter: _DrawingPainter(
-          strokes: _strokes,
-          currentPoints: _currentPoints,
-          currentColor: _brushColor,
-          currentSize: _brushSize,
-          currentBrushType: _brushType,
-          bgColor: context.read<MoodProvider>().isDarkMode
-              ? const Color(0xFF1A2332)
-              : const Color(0xFFF0FDF4),
+      onPointerCancel: (_) {
+        _endDrawing();
+      },
+      child: RepaintBoundary(
+        child: CustomPaint(
+          size: const Size(double.infinity, double.infinity),
+          painter: _DrawingPainter(
+            strokes: _strokes,
+            currentPoints: _currentPoints,
+            currentColor: _brushColor,
+            currentSize: _activeSize,
+            currentBrushType: _brushType,
+          ),
         ),
       ),
     );
@@ -313,8 +385,7 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
     return const _ButterflyAnimation();
   }
 
-  Widget _buildStarAnimation() {
-    final isDark = context.read<MoodProvider>().isDarkMode;
+  Widget _buildStarAnimation(bool isDark) {
     if (!isDark || _recentRecords.isEmpty) return const SizedBox.shrink();
     return const _StarAnimation();
   }
@@ -369,25 +440,25 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
   }
 
   Widget _buildDrawingToolbar() {
+    // 情绪系柔和色板：低饱和、粉彩感、情绪表达丰富
     final colors = [
-      Colors.pink,
-      Colors.pinkAccent,
-      Colors.orange,
-      Colors.orangeAccent,
-      Colors.yellow,
-      Colors.yellowAccent,
-      Colors.green,
-      Colors.greenAccent,
-      Colors.blue,
-      Colors.blueAccent,
-      Colors.purple,
-      Colors.purpleAccent,
-      Colors.red,
-      Colors.redAccent,
-      Colors.cyan,
-      Colors.cyanAccent,
-      Colors.white,
-      Colors.black,
+      const Color(0xFFF48FB1), // 柔粉（喜悦）
+      const Color(0xFFF06292), // 亮粉（欢欣）
+      const Color(0xFFFF8A80), // 暖珊瑚（温暖）
+      const Color(0xFFFFAB91), // 淡橘（活力）
+      const Color(0xFFFFCC80), // 杏黄（轻快）
+      const Color(0xFFFFF59D), // 淡金（希望）
+      const Color(0xFFAED581), // 草绿（平静）
+      const Color(0xFF81C784), // 青绿（自然）
+      const Color(0xFF80DEEA), // 天蓝（宁静）
+      const Color(0xFF64B5F6), // 湖蓝（专注）
+      const Color(0xFFB39DDB), // 柔紫（灵感）
+      const Color(0xFFCE93D8), // 淡紫（梦幻）
+      const Color(0xFFA1887F), // 暖棕（沉稳）
+      const Color(0xFFE0E0E0), // 浅灰（平和）
+      const Color(0xFF90A4AE), // 蓝灰（冷静）
+      const Color(0xFFFFFFFF), // 纯白（高光）
+      const Color(0xFF37474F), // 深灰蓝（描绘）
     ];
 
     return Container(
@@ -412,24 +483,30 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
                     label: '撤销',
                     onPressed: _strokes.isNotEmpty ? _undoDrawing : null,
                   ),
+                  const SizedBox(width: 4),
+                  _buildToolButton(
+                    icon: Icons.redo,
+                    label: '重做',
+                    onPressed: _redoneStrokes.isNotEmpty ? _redoDrawing : null,
+                  ),
                   const SizedBox(width: 8),
                   _buildToolButton(
                     icon: Icons.clear,
                     label: '清空',
-                    onPressed: _strokes.isNotEmpty ? _clearDrawing : null,
+                    onPressed: _strokes.isNotEmpty || _redoneStrokes.isNotEmpty ? _clearDrawing : null,
                   ),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 12),
-
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: colors.map((color) {
               return GestureDetector(
                 onTap: () {
+                  _commitCurrentStroke();
                   setState(() {
                     _brushColor = color;
                     _brushType = BrushType.pen;
@@ -456,18 +533,27 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
             }).toList(),
           ),
           const SizedBox(height: 12),
-
           Row(
             children: [
               const Text('粗细'),
               const SizedBox(width: 8),
               Expanded(
                 child: Slider(
-                  value: _brushSize,
+                  value: _activeSize,
                   min: 2,
                   max: 20,
                   divisions: 9,
-                  onChanged: (value) => setState(() => _brushSize = value),
+                  onChanged: (value) {
+                    _commitCurrentStroke();
+                    setState(() {
+                    if (_brushType == BrushType.eraser) {
+                      _eraserSize = value;
+                      PreferencesService().setEraserSize(value);
+                    } else {
+                      _brushSize = value;
+                    }
+                    });
+                  },
                   activeColor: AppTheme.primaryColor,
                 ),
               ),
@@ -484,12 +570,10 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
                   border: Border.all(color: Colors.white, width: 2),
                 ),
                 child: Container(
-                  width: _brushSize,
-                  height: _brushSize,
-                  decoration: BoxDecoration(
-                    color: _brushType == BrushType.eraser
-                        ? Colors.white
-                        : Colors.white,
+                  width: _activeSize.clamp(2.0, 24.0),
+                  height: _activeSize.clamp(2.0, 24.0),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -497,7 +581,6 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
             ],
           ),
           const SizedBox(height: 12),
-
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -547,7 +630,6 @@ class _DrawingPainter extends CustomPainter {
   final Color currentColor;
   final double currentSize;
   final BrushType currentBrushType;
-  final Color bgColor;
 
   _DrawingPainter({
     required this.strokes,
@@ -555,16 +637,18 @@ class _DrawingPainter extends CustomPainter {
     required this.currentColor,
     required this.currentSize,
     required this.currentBrushType,
-    required this.bgColor,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    // 涂鸦层由 RepaintBoundary 隔离为独立 retained 图层；橡皮擦的
+    // BlendMode.clear 只清除本层像素，露出下方同样独立的花园图层，
+    // 因此保留下层颜色且不会因 saveLayer 在某些设备上产生坐标偏移。
     for (final stroke in strokes) {
       _drawStroke(canvas, stroke);
     }
 
-    if (currentPoints.length >= 2) {
+    if (currentPoints.isNotEmpty) {
       _drawStroke(canvas, Stroke(
         points: currentPoints,
         color: currentColor,
@@ -582,17 +666,48 @@ class _DrawingPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     if (stroke.brushType == BrushType.eraser) {
+      // 真正的橡皮擦：清成透明，露出下层花园（而非平涂一个固定底色）。
+      // 外层 RepaintBoundary 已把涂鸦层隔离，clear 只作用于涂鸦层本身。
       paint
-        ..color = bgColor
-        ..blendMode = BlendMode.src;
+        ..color = Colors.transparent
+        ..blendMode = BlendMode.clear;
     } else {
       paint.color = stroke.color;
     }
 
-    if (stroke.points.length >= 2) {
-      final path = ui.Path()..moveTo(stroke.points[0].dx, stroke.points[0].dy);
-      for (int i = 1; i < stroke.points.length; i++) {
-        path.lineTo(stroke.points[i].dx, stroke.points[i].dy);
+    if (stroke.points.length == 1) {
+      canvas.drawCircle(stroke.points[0], stroke.size / 2, paint);
+    } else if (stroke.points.length == 2) {
+      canvas.drawLine(stroke.points[0], stroke.points[1], paint);
+    } else {
+      final path = ui.Path();
+      final pts = stroke.points;
+      path.moveTo(pts[0].dx, pts[0].dy);
+
+      if (pts.length == 3) {
+        // 三点：二次贝塞尔曲线直接通过三点
+        path.quadraticBezierTo(
+          pts[1].dx, pts[1].dy,
+          pts[2].dx, pts[2].dy,
+        );
+      } else {
+        // 4+ 点：全程平滑曲线 — 起手曲线到中点，中间逐段贝塞尔，收尾曲线到末点
+        path.quadraticBezierTo(
+          pts[1].dx, pts[1].dy,
+          (pts[1].dx + pts[2].dx) / 2,
+          (pts[1].dy + pts[2].dy) / 2,
+        );
+        for (int i = 1; i < pts.length - 2; i++) {
+          path.quadraticBezierTo(
+            pts[i + 1].dx, pts[i + 1].dy,
+            (pts[i + 1].dx + pts[i + 2].dx) / 2,
+            (pts[i + 1].dy + pts[i + 2].dy) / 2,
+          );
+        }
+        path.quadraticBezierTo(
+          pts[pts.length - 2].dx, pts[pts.length - 2].dy,
+          pts[pts.length - 1].dx, pts[pts.length - 1].dy,
+        );
       }
       canvas.drawPath(path, paint);
     }
@@ -601,7 +716,7 @@ class _DrawingPainter extends CustomPainter {
   @override
   bool shouldRepaint(_DrawingPainter oldDelegate) {
     return oldDelegate.strokes.length != strokes.length ||
-        oldDelegate.currentPoints != currentPoints ||
+        !identical(oldDelegate.currentPoints, currentPoints) ||
         oldDelegate.currentColor != currentColor ||
         oldDelegate.currentSize != currentSize ||
         oldDelegate.currentBrushType != currentBrushType;

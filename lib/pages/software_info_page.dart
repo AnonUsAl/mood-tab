@@ -146,6 +146,17 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v2.6.0',
+        date: '2025-07',
+        changes: [
+          '🎨 情绪花园涂鸦大升级 — 笔触贝塞尔平滑、重做功能、持久化',
+          '🖌️ 独立橡皮擦尺寸 + 情绪系柔和色板',
+          '🔔 消息提醒修复 — Android 13+ 权限适配 + iOS 通知代理注册',
+          '🔧 浅色模式涂鸦坐标修复 + 单点点击渲染',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
         version: 'v2.5.0',
         date: '2025-07',
         changes: [
@@ -154,7 +165,6 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
           '📅 日历补记 — 补录过去日期的心情',
           '🔧 快捷操作卡片布局优化',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v2.4.0',

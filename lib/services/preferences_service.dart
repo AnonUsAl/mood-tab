@@ -29,6 +29,10 @@ class PreferencesService {
   static const _keyCustomTags = 'custom_tags';
   static const _keyUserName = 'user_name';
   static const _keyMedications = 'medications';
+  static const _keyGardenDoodles = 'garden_doodles';
+  static const _keyEraserSize = 'eraser_size';
+  static const _keyDailyReminderStyle = 'daily_reminder_style';
+  static const _keyMedicationReminderStyle = 'medication_reminder_style';
 
   /// 初始化，应在 app 启动时调用
   Future<void> init() async {
@@ -206,6 +210,38 @@ class PreferencesService {
     await setLastCheckInDate(today);
     return newStreak;
   }
+
+  // ==================== 情绪花园涂鸦 ====================
+
+  /// 保存涂鸦 JSON（Stroke 列表的序列化字符串）
+  Future<void> setGardenDoodles(String jsonStr) =>
+      _prefsInstance.setString(_keyGardenDoodles, jsonStr);
+
+  /// 读取涂鸦 JSON，无数据时返回空 JSON 数组字符串
+  String get gardenDoodles =>
+      _prefsInstance.getString(_keyGardenDoodles) ?? '[]';
+
+  /// 橡皮擦大小
+  Future<void> setEraserSize(double value) =>
+      _prefsInstance.setDouble(_keyEraserSize, value);
+
+  double get eraserSize =>
+      _prefsInstance.getDouble(_keyEraserSize) ?? 12.0;
+
+  // ==================== 提醒风格 ====================
+
+  /// 'notification' (系统通知) 或 'alarm' (闹钟)
+  String get dailyReminderStyle =>
+      _prefsInstance.getString(_keyDailyReminderStyle) ?? 'notification';
+
+  Future<void> setDailyReminderStyle(String value) =>
+      _prefsInstance.setString(_keyDailyReminderStyle, value);
+
+  String get medicationReminderStyle =>
+      _prefsInstance.getString(_keyMedicationReminderStyle) ?? 'notification';
+
+  Future<void> setMedicationReminderStyle(String value) =>
+      _prefsInstance.setString(_keyMedicationReminderStyle, value);
 
   // ==================== 工具方法 ====================
 

@@ -186,17 +186,26 @@ class _CalendarPageState extends State<CalendarPage> {
         today.year == _focusedMonth.year && today.month == _focusedMonth.month;
 
     return Expanded(
-      child: GridView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 7,
-          childAspectRatio: 0.85,
-          crossAxisSpacing: 4,
-          mainAxisSpacing: 4,
-        ),
-        itemCount: firstWeekday + daysInMonth,
-        itemBuilder: (context, index) {
+      child: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          if (details.primaryVelocity == null) return;
+          if (details.primaryVelocity! < -300) {
+            _changeMonth(1); // 左滑 → 下个月
+          } else if (details.primaryVelocity! > 300) {
+            _changeMonth(-1); // 右滑 → 上个月
+          }
+        },
+        child: GridView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            childAspectRatio: 0.85,
+            crossAxisSpacing: 4,
+            mainAxisSpacing: 4,
+          ),
+          itemCount: firstWeekday + daysInMonth,
+          itemBuilder: (context, index) {
           if (index < firstWeekday) {
             return const SizedBox.shrink();
           }
@@ -218,6 +227,7 @@ class _CalendarPageState extends State<CalendarPage> {
             onTap: () => _loadSelectedDay(date),
           );
         },
+        ),
       ),
     );
   }

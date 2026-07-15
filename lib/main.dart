@@ -9,6 +9,7 @@ import 'pages/splash_page.dart';
 import 'pages/privacy_lock_page.dart';
 import 'providers/mood_provider.dart';
 import 'services/preferences_service.dart';
+import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -50,6 +51,7 @@ class _AppEntrance extends StatefulWidget {
 class _AppEntranceState extends State<_AppEntrance>
     with WidgetsBindingObserver {
   final PreferencesService _preferences = PreferencesService();
+  final NotificationService _notifications = NotificationService();
   bool _showSplash = true;
   bool _isLocked = false;
   bool _preferencesReady = false;
@@ -85,6 +87,11 @@ class _AppEntranceState extends State<_AppEntrance>
     final provider = context.read<MoodProvider>();
     if (!provider.isLoading || provider.totalCount > 0) {
       await _preferences.init();
+      await _notifications.init();
+      await _notifications.requestPermissions();
+      if (_preferences.dailyReminderEnabled && _preferences.dailyReminderTimes.isNotEmpty) {
+        await _notifications.scheduleDailyReminder(_preferences.dailyReminderTimes);
+      }
       if (!mounted) return;
       final hasValidPin = _preferences.pinCode.length == 4;
       setState(() {

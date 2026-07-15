@@ -88,6 +88,7 @@ class MoodProvider extends ChangeNotifier {
     _hasCheckedInToday = true;
     _checkinStreak = await _dbService.getCheckinStreak();
     _totalCheckins = await _dbService.getTotalCheckins();
+    await _prefs.checkAndUpdateStreak();
     notifyListeners();
   }
 
@@ -215,7 +216,7 @@ class MoodProvider extends ChangeNotifier {
   // ==================== 药物提醒管理 ====================
 
   /// 重新调度所有启用药物的提醒通知
-  Future<void> _rescheduleAllMedicationReminders() async {
+  Future<void> rescheduleMedicationReminders() async {
     await _notifications.cancelAllMedicationReminders();
 
     // 重新设置每日情绪提醒（因为 cancelAll 会清除它）
@@ -252,7 +253,7 @@ class MoodProvider extends ChangeNotifier {
     await _prefs.setMedications(_medications);
     notifyListeners();
     try {
-      await _rescheduleAllMedicationReminders();
+      await rescheduleMedicationReminders();
     } catch (_) {}
   }
 
@@ -264,7 +265,7 @@ class MoodProvider extends ChangeNotifier {
     await _prefs.setMedications(_medications);
     notifyListeners();
     try {
-      await _rescheduleAllMedicationReminders();
+      await rescheduleMedicationReminders();
     } catch (_) {}
   }
 
@@ -288,7 +289,7 @@ class MoodProvider extends ChangeNotifier {
     await _prefs.setMedications(_medications);
     notifyListeners();
     try {
-      await _rescheduleAllMedicationReminders();
+      await rescheduleMedicationReminders();
     } catch (_) {}
   }
 }

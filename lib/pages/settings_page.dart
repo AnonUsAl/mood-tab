@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
 import '../models/mood_type.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -42,6 +44,8 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _privacyLockEnabled = false;
   String _themeMode = 'light';
   String _version = '';
+  String _dailyReminderStyle = 'notification';
+  String _medicationReminderStyle = 'notification';
 
   @override
   void initState() {
@@ -58,6 +62,8 @@ class _SettingsPageState extends State<SettingsPage> {
       _privacyLockEnabled = _prefs.privacyLockEnabled;
       _themeMode = _prefs.themeMode;
       _version = '脑电波 v${packageInfo.version}';
+      _dailyReminderStyle = _prefs.dailyReminderStyle;
+      _medicationReminderStyle = _prefs.medicationReminderStyle;
     });
   }
 
@@ -227,7 +233,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       const SizedBox(width: 24),
                       _buildStatItem(
-                        '${_prefs.streakDays}',
+                        '${provider.checkinStreak}',
                         '连续打卡',
                       ),
                     ],
@@ -427,9 +433,37 @@ class _SettingsPageState extends State<SettingsPage> {
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          _buildReminderStyleSelector(
+            label: '提醒方式',
+            value: _dailyReminderStyle,
+            onChanged: (style) async {
+              await _prefs.setDailyReminderStyle(style);
+              setState(() => _dailyReminderStyle = style);
+              if (_reminderEnabled) {
+                await _notifications.scheduleDailyReminder(_reminderTimes);
+              }
+            },
+          ),
           _buildDivider(),
         ] else
           _buildDivider(),
+        // 用药提醒风格
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: _buildReminderStyleSelector(
+            label: '用药提醒方式',
+            value: _medicationReminderStyle,
+            onChanged: (style) async {
+              await _prefs.setMedicationReminderStyle(style);
+              setState(() => _medicationReminderStyle = style);
+              // 通知 provider 重新调度用药提醒
+              final provider = context.read<MoodProvider>();
+              await provider.rescheduleMedicationReminders();
+            },
+          ),
+        ),
+        _buildDivider(),
         _buildActionTile(
           icon: Icons.medication_outlined,
           iconColor: const Color(0xFFEF5350),
@@ -944,6 +978,31 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Widget _buildReminderStyleSelector({
+    required String label,
+    required String value,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.bodyMedium),
+        SegmentedButton<String>(
+          style: SegmentedButton.styleFrom(
+            selectedBackgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
+            selectedForegroundColor: AppTheme.primaryColor,
+          ),
+          segments: const [
+            ButtonSegment(value: 'notification', label: Text('系统通知')),
+            ButtonSegment(value: 'alarm', label: Text('闹钟')),
+          ],
+          selected: {value},
+          onSelectionChanged: (newVal) => onChanged(newVal.first),
+        ),
+      ],
+    );
+  }
+
   // ==================== 数据操作 ====================
 
   Future<void> _exportCsv() async {
@@ -1002,31 +1061,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
       final pdf = pw.Document();
 
+      // 尝试多种方式加载中文字体
       pw.Font? font;
-      try {
-        final fontUrl = 'https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/SimplifiedChinese/NotoSansSC-Regular.otf';
-        final response = await http.get(Uri.parse(fontUrl));
-        if (response.statusCode == 200) {
-          font = pw.Font.ttf(response.bodyBytes.buffer.asByteData());
-        }
-      } catch (_) {
-        try {
-          final fontUrl = 'https://fonts.googleapis.com/css2?family=Noto+Sans+SC&display=swap';
-          final response = await http.get(Uri.parse(fontUrl));
-          if (response.statusCode == 200) {
-            final regex = RegExp(r'url\(([^)]+)\)');
-            final match = regex.firstMatch(response.body);
-            if (match != null) {
-              final fontDataUrl = match.group(1)?.replaceAll('format("woff2")', '').trim();
-              if (fontDataUrl != null) {
-                final fontResponse = await http.get(Uri.parse(fontDataUrl));
-                if (fontResponse.statusCode == 200) {
-                  font = pw.Font.ttf(fontResponse.bodyBytes.buffer.asByteData());
-                }
-              }
-            }
-          }
-        } catch (_) {}
+      final fontData = await _loadCjkFont();
+      if (fontData != null) {
+        font = pw.Font.ttf(fontData);
       }
 
       pdf.addPage(
@@ -1079,6 +1118,123 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (e) {
       _showSnackBar('导出失败：$e');
     }
+  }
+
+
+  /// 加载 CJK 字体数据：优先读 google_fonts 缓存，若无则从网络下载并缓存
+  Future<ByteData?> _loadCjkFont() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final cacheFile = File('${dir.path}/cjk_font.ttf');
+
+      // 1. 读缓存
+      if (await cacheFile.exists()) {
+        return await cacheFile.readAsBytes().then((b) => b.buffer.asByteData());
+      }
+
+      // 2. 尝试 google_fonts 缓存
+      final gfFile = File('${dir.path}/google_fonts/NotoSansSC-Regular.ttf');
+      if (await gfFile.exists()) {
+        return await gfFile.readAsBytes().then((b) => b.buffer.asByteData());
+      }
+
+      // 3. 从网络下载（使用 Google Fonts 直接 TTF 源）
+      final urls = [
+        'https://github.com/notofonts/noto-cjk/releases/download/Sans2.004/02_NotoSansCJKsc.zip',
+      ];
+
+      for (final url in urls) {
+        final response = await http.get(Uri.parse(url));
+        if (response.statusCode == 200) {
+          // 如果是 ZIP，只取第一个 OTF/TTF
+          final bytes = response.bodyBytes;
+          // Check if it's a ZIP by magic number
+          if (bytes.length > 4 && bytes[0] == 0x50 && bytes[1] == 0x4B) {
+            // ZIP — 尝试提取第一个 OTF
+            final fontBytes = _extractFontFromZip(bytes);
+            if (fontBytes != null) {
+              // 缓存
+              await cacheFile.writeAsBytes(fontBytes);
+              return Uint8List.fromList(fontBytes).buffer.asByteData();
+            }
+          }
+          // 直接是字体文件
+          if (bytes.length > 4 && bytes[0] == 0x4F && bytes[1] == 0x54 && bytes[2] == 0x54 && bytes[3] == 0x4F) {
+            await cacheFile.writeAsBytes(bytes);
+            return bytes.buffer.asByteData();
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// 从 ZIP 中提取第一个 .otf / .ttf 文件
+  List<int>? _extractFontFromZip(List<int> zipBytes) {
+    // 简单 ZIP 解析：查找 "NotoSansSC-Regular.otf" 文件
+    final fileName = utf8.encode('NotoSansSC-Regular.otf');
+    int offset = 0;
+    while (offset < zipBytes.length - fileName.length - 100) {
+      final idx = _indexOfBytes(zipBytes, fileName, offset);
+      if (idx == -1) break;
+
+      // 文件名在 ZIP 本地文件头中，文件头前面 26 字节是文件名字段长度
+      final nameLenStart = idx - 28;
+      if (nameLenStart < 0) { offset = idx + 1; continue; }
+
+      final nameLen = zipBytes[nameLenStart] | (zipBytes[nameLenStart + 1] << 8);
+      final extraLenStart = nameLenStart + 2;
+      final extraLen = zipBytes[extraLenStart] | (zipBytes[extraLenStart + 1] << 8);
+
+      // 数据紧接在文件头 + 文件名 + 额外字段之后
+      final headerStart = idx - 26;
+      final dataOffset = idx + nameLen + extraLen;
+      if (dataOffset >= zipBytes.length) { offset = idx + 1; continue; }
+
+      // 压缩大小在 header + 18 处
+      final compSize = _readUint32(zipBytes, headerStart + 18);
+      final uncompSize = _readUint32(zipBytes, headerStart + 22);
+
+      if (compSize > 0) {
+        // Stored (无压缩) 时，compSize 应等于或接近 uncompSize
+        if (compSize == uncompSize || compSize == 0) {
+          final size = uncompSize > 0 ? uncompSize : compSize;
+          return zipBytes.sublist(dataOffset, dataOffset + min(size, zipBytes.length - dataOffset));
+        }
+        // Deflate 压缩：需要用 inflate 解压
+        final rawData = zipBytes.sublist(dataOffset, min(dataOffset + compSize + 100, zipBytes.length));
+        // 跳过 Deflate 包装头 (2 bytes)，用 zlib 解压
+        try {
+          final decompressed = zlib.decode(rawData.sublist(2));
+          return decompressed;
+        } catch (_) {
+          try {
+            final decompressed = zlib.decode(rawData);
+            return decompressed;
+          } catch (_) {}
+        }
+      }
+      offset = idx + 1;
+    }
+    return null;
+  }
+
+  int _indexOfBytes(List<int> data, List<int> pattern, int start) {
+    for (int i = start; i <= data.length - pattern.length; i++) {
+      bool match = true;
+      for (int j = 0; j < pattern.length; j++) {
+        if (data[i + j] != pattern[j]) { match = false; break; }
+      }
+      if (match) return i;
+    }
+    return -1;
+  }
+
+  int _readUint32(List<int> data, int offset) {
+    return (data[offset] & 0xFF) |
+        ((data[offset + 1] & 0xFF) << 8) |
+        ((data[offset + 2] & 0xFF) << 16) |
+        ((data[offset + 3] & 0xFF) << 24);
   }
 
   Future<void> _backupData() async {
