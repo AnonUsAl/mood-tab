@@ -20,6 +20,10 @@ mood-tab 是一款专注于治愈与陪伴的跨平台个人情绪记录软件�
 - **专业量表**：内置接入 [云术心理测量平台](https://pt.cldery.com/)，提供 PHQ-9、GAD-7、SDS、SAS 等专业心理测评量表
 - **WebView 套壳**：测评页面直接加载云端网页，无需 app 内更新即可同步最新量表
 
+### 暖心寄语
+
+- **精神健康寄语**：为双相情感障碍、抑郁症、焦虑症、强迫症、PTSD、ADHD 患者提供温暖的支持话语，传递「你并不孤单」的力量
+
 ### 个性化与隐私
 
 - **每日提醒**：可自定义时间的情绪记录提醒推送
@@ -74,6 +78,7 @@ lib/
 │   ├── tag_management_page.dart       # 标签管理页（自定义标签增删）
 │   ├── splash_page.dart               # 启动加载页（暖心语句）
 │   ├── crisis_support_page.dart       # 危机支持页（心理热线）
+│   ├── warm_words_page.dart           # 暖心寄语页（精神健康支持）
 │   ├── assessment_web_page.dart       # 心理测评页（WebView 套壳）
 │   └── about_page.dart                # 关于作者页
 ├── theme/

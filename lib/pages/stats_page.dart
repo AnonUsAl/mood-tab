@@ -22,13 +22,27 @@ class _StatsPageState extends State<StatsPage> {
   List<MoodRecord> _periodRecords = [];
   List<MoodRecord> _prevPeriodRecords = []; // 上期记录，用于对比
   bool _isLoading = false;
+  MoodProvider? _providerRef;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _providerRef = context.read<MoodProvider>();
+      _providerRef!.addListener(_onProviderChanged);
       _loadData();
     });
+  }
+
+  @override
+  void dispose() {
+    _providerRef?.removeListener(_onProviderChanged);
+    super.dispose();
+  }
+
+  /// Provider 数据变化时重新加载统计数据
+  void _onProviderChanged() {
+    _loadData();
   }
 
   Future<void> _loadData() async {

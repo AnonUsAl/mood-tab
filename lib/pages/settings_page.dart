@@ -16,6 +16,7 @@ import 'about_page.dart';
 import 'assessment_web_page.dart';
 import 'crisis_support_page.dart';
 import 'tag_management_page.dart';
+import 'warm_words_page.dart';
 
 /// 设置页（我的）
 /// 个人信息、提醒设置、隐私锁、主题设置、数据管理、心理测评、关于作者
@@ -121,7 +122,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   // 版本信息
                   Center(
                     child: Text(
-                      'mood-tab v2.0.2',
+                      'mood-tab v2.1.0',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppTheme.textHintOf(context),
                           ),
@@ -549,10 +550,23 @@ class _SettingsPageState extends State<SettingsPage> {
           title: '心理测评',
           subtitle: 'PHQ-9、GAD-7 等专业量表',
           isFirst: false,
-          isLast: true,
+          isLast: false,
           onTap: () {
             Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const AssessmentWebPage()));
+          },
+        ),
+        _buildActionTile(
+          icon: Icons.volunteer_activism_outlined,
+          iconColor: const Color(0xFF9575CD),
+          title: '暖心寄语',
+          subtitle: '致每一个正在努力的你',
+          isFirst: false,
+          isLast: true,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const WarmWordsPage()),
+            );
           },
         ),
       ],
