@@ -7,6 +7,7 @@ import '../providers/mood_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/intensity_dots.dart';
+import 'mood_record_page.dart';
 
 /// 历史记录页面 - 时间线展示所有情绪记录
 class HistoryPage extends StatefulWidget {
@@ -438,41 +439,66 @@ class _HistoryPageState extends State<HistoryPage> {
                   ),
                 ],
                 const SizedBox(height: 24),
-                // 删除按钮
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      Navigator.of(ctx).pop();
-                      final shouldDelete =
-                          await _confirmDelete(context, record) ?? false;
-                      if (shouldDelete && context.mounted) {
-                        await context
-                            .read<MoodProvider>()
-                            .deleteRecord(record.id!);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('记录已删除'),
-                              behavior: SnackBarBehavior.floating,
+                  // 操作按钮
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (editCtx) =>
+                                    MoodRecordPage(existingRecord: record),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.edit_outlined, size: 20),
+                          label: const Text('修改'),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                          );
-                        }
-                      }
-                    },
-                    icon: const Icon(Icons.delete_outline, size: 20),
-                    label: const Text('删除记录'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      side: BorderSide(color: Colors.red.shade300),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () async {
+                            Navigator.of(ctx).pop();
+                            final shouldDelete =
+                                await _confirmDelete(context, record) ?? false;
+                            if (shouldDelete && context.mounted) {
+                              await context
+                                  .read<MoodProvider>()
+                                  .deleteRecord(record.id!);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('记录已删除'),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.delete_outline, size: 20),
+                          label: const Text('删除'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: BorderSide(color: Colors.red.shade300),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                ],
             ),
           ),
         );

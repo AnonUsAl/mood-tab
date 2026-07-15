@@ -13,6 +13,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../providers/mood_provider.dart';
 import '../services/database_service.dart';
 import '../services/preferences_service.dart';
+import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import 'about_page.dart';
 import 'software_info_page.dart';
@@ -34,6 +35,7 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final _prefs = PreferencesService();
   final _dbService = DatabaseService();
+  final _notifications = NotificationService();
 
   bool _reminderEnabled = false;
   List<String> _reminderTimes = ['20:00'];
@@ -363,9 +365,10 @@ class _SettingsPageState extends State<SettingsPage> {
               _reminderEnabled = value;
             });
             if (value) {
-              await _prefs.setDailyReminderTimes(_reminderTimes);
+              await _notifications.scheduleDailyReminder(_reminderTimes);
               _showSnackBar('已开启每日提醒');
             } else {
+              await _notifications.cancelDailyReminders();
               _showSnackBar('已关闭每日提醒');
             }
           },
@@ -472,6 +475,7 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         _reminderTimes = newTimes;
       });
+      await _notifications.scheduleDailyReminder(newTimes);
       _showSnackBar('已添加提醒时间 $timeStr');
     }
   }
@@ -516,6 +520,7 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         _reminderTimes = newTimes;
       });
+      await _notifications.scheduleDailyReminder(newTimes);
       _showSnackBar('已删除提醒时间 $existingTime');
     } else if (action == 'edit') {
       final picked = await showTimePicker(
@@ -534,6 +539,7 @@ class _SettingsPageState extends State<SettingsPage> {
         setState(() {
           _reminderTimes = newTimes;
         });
+        await _notifications.scheduleDailyReminder(newTimes);
       }
     }
   }

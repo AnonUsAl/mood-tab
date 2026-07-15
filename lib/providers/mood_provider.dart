@@ -75,6 +75,9 @@ class MoodProvider extends ChangeNotifier {
     _hasCheckedInToday = await _dbService.hasCheckedInToday();
     _checkinStreak = await _dbService.getCheckinStreak();
     _totalCheckins = await _dbService.getTotalCheckins();
+    if (_prefs.dailyReminderEnabled) {
+      await _notifications.scheduleDailyReminder(_prefs.dailyReminderTimes);
+    }
     _setLoading(false);
   }
 

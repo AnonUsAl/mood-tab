@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:provider/provider.dart';
 import '../models/mood_record.dart';
 import '../models/mood_type.dart';
@@ -23,6 +24,12 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
   bool _isLoading = false;
   MoodProvider? _providerRef;
 
+  bool _isDrawing = false;
+  Color _brushColor = Colors.pink;
+  double _brushSize = 4.0;
+  List<List<Offset>> _strokes = [];
+  List<Offset> _currentStroke = [];
+
   @override
   void initState() {
     super.initState();
@@ -37,6 +44,45 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
   void dispose() {
     _providerRef?.removeListener(_onProviderChanged);
     super.dispose();
+  }
+
+  void _startDrawing(Offset point) {
+    setState(() {
+      _isDrawing = true;
+      _currentStroke = [point];
+    });
+  }
+
+  void _draw(Offset point) {
+    if (!_isDrawing) return;
+    setState(() {
+      _currentStroke.add(point);
+    });
+  }
+
+  void _endDrawing() {
+    if (_currentStroke.isNotEmpty) {
+      setState(() {
+        _isDrawing = false;
+        _strokes.add(List.from(_currentStroke));
+        _currentStroke = [];
+      });
+    }
+  }
+
+  void _clearDrawing() {
+    setState(() {
+      _strokes = [];
+      _currentStroke = [];
+    });
+  }
+
+  void _undoDrawing() {
+    if (_strokes.isNotEmpty) {
+      setState(() {
+        _strokes.removeLast();
+      });
+    }
   }
 
   void _onProviderChanged() {
@@ -101,6 +147,10 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
 
                     // 花园画布
                     _buildGardenCanvas(),
+                    const SizedBox(height: 16),
+
+                    // 涂鸦工具栏
+                    _buildDrawingToolbar(),
                     const SizedBox(height: 24),
 
                     // 花语解读
@@ -168,7 +218,7 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
     );
   }
 
-  /// 花园画布 — 用 CustomPainter 绘制花朵
+  /// 花园画布 — 用 CustomPainter 绘制花朵 + 涂鸦层
   Widget _buildGardenCanvas() {
     return Container(
       height: 380,
@@ -188,7 +238,35 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
             ),
             _buildButterflyAnimation(),
             _buildStarAnimation(),
+            _buildDrawingLayer(),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// 涂鸦层
+  Widget _buildDrawingLayer() {
+    return GestureDetector(
+      onPanStart: (details) {
+        final renderBox = context.findRenderObject() as RenderBox;
+        final point = renderBox.globalToLocal(details.globalPosition);
+        _startDrawing(point);
+      },
+      onPanUpdate: (details) {
+        final renderBox = context.findRenderObject() as RenderBox;
+        final point = renderBox.globalToLocal(details.globalPosition);
+        _draw(point);
+      },
+      onPanEnd: (_) {
+        _endDrawing();
+      },
+      child: CustomPaint(
+        painter: _DrawingPainter(
+          strokes: _strokes,
+          currentStroke: _currentStroke,
+          color: _brushColor,
+          size: _brushSize,
         ),
       ),
     );
@@ -257,6 +335,178 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
         ),
       ],
     );
+  }
+
+  /// 涂鸦工具栏
+  Widget _buildDrawingToolbar() {
+    final colors = [
+      Colors.pink,
+      Colors.orange,
+      Colors.yellow,
+      Colors.green,
+      Colors.blue,
+      Colors.purple,
+      Colors.red,
+      Colors.black,
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBgOf(context),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Text(
+            '🎨 涂鸦',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          
+          // 颜色选择
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: colors.map((color) {
+              return GestureDetector(
+                onTap: () => setState(() => _brushColor = color),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: _brushColor == color ? Colors.white : Colors.transparent,
+                      width: 3,
+                    ),
+                    boxShadow: _brushColor == color
+                        ? [const BoxShadow(blurRadius: 4)]
+                        : [],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 12),
+          
+          // 画笔大小
+          Row(
+            children: [
+              const Text('粗细'),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Slider(
+                  value: _brushSize,
+                  min: 2,
+                  max: 12,
+                  divisions: 5,
+                  onChanged: (value) => setState(() => _brushSize = value),
+                  activeColor: AppTheme.primaryColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('${_brushSize.round()}'),
+            ],
+          ),
+          const SizedBox(height: 12),
+          
+          // 操作按钮
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildToolButton(
+                icon: Icons.undo,
+                label: '撤销',
+                onPressed: _strokes.isNotEmpty ? _undoDrawing : null,
+              ),
+              const SizedBox(width: 16),
+              _buildToolButton(
+                icon: Icons.clear,
+                label: '清空',
+                onPressed: _strokes.isNotEmpty ? _clearDrawing : null,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToolButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+  }) {
+    return Column(
+      children: [
+        IconButton(
+          icon: Icon(icon),
+          onPressed: onPressed,
+          color: onPressed != null ? AppTheme.primaryColor : Colors.grey,
+          disabledColor: Colors.grey,
+        ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: onPressed != null ? null : Colors.grey,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 涂鸦画笔
+class _DrawingPainter extends CustomPainter {
+  final List<List<Offset>> strokes;
+  final List<Offset> currentStroke;
+  final Color color;
+  final double size;
+
+  _DrawingPainter({
+    required this.strokes,
+    required this.currentStroke,
+    required this.color,
+    required this.size,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = this.size
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    for (final stroke in strokes) {
+      if (stroke.length >= 2) {
+        canvas.drawPoints(
+          ui.PointMode.points,
+          stroke,
+          paint,
+        );
+        for (int i = 0; i < stroke.length - 1; i++) {
+          canvas.drawLine(stroke[i], stroke[i + 1], paint);
+        }
+      }
+    }
+
+    if (currentStroke.length >= 2) {
+      for (int i = 0; i < currentStroke.length - 1; i++) {
+        canvas.drawLine(currentStroke[i], currentStroke[i + 1], paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DrawingPainter oldDelegate) {
+    return oldDelegate.strokes != strokes ||
+        oldDelegate.currentStroke != currentStroke ||
+        oldDelegate.color != color ||
+        oldDelegate.size != size;
   }
 }
 

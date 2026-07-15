@@ -5,6 +5,7 @@ import '../models/mood_type.dart';
 import '../providers/mood_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/empty_state.dart';
+import 'mood_record_page.dart';
 
 /// 日记本页
 /// 展示所有包含日记内容的情绪记录，按日期倒序排列
@@ -119,6 +120,7 @@ class _DiaryPageState extends State<DiaryPage> {
               }
             });
           },
+          onLongPress: () => _editRecord(record),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -235,5 +237,13 @@ class _DiaryPageState extends State<DiaryPage> {
     final hour = dt.hour.toString().padLeft(2, '0');
     final minute = dt.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  void _editRecord(MoodRecord record) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (ctx) => MoodRecordPage(existingRecord: record),
+      ),
+    );
   }
 }
