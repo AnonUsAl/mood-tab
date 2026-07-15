@@ -4,9 +4,10 @@ import '../models/mood_tag.dart';
 import '../models/mood_type.dart';
 import '../providers/mood_provider.dart';
 import '../theme/app_theme.dart';
+import 'crisis_support_page.dart';
 
 /// 情绪记录页面
-/// 选择情绪类型 → 设置强度 → 选择标签 → 添加备注 → 保存
+/// 选择情绪类型 → 设置强度 → 选择标签 → 添加备注 → 写日记（可选） → 保存
 class MoodRecordPage extends StatefulWidget {
   const MoodRecordPage({super.key});
 
@@ -19,11 +20,14 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
   int _intensity = 3;
   final Set<String> _selectedTags = {};
   final TextEditingController _noteController = TextEditingController();
+  final TextEditingController _diaryController = TextEditingController();
   bool _isSaving = false;
+  bool _showDiary = false;
 
   @override
   void dispose() {
     _noteController.dispose();
+    _diaryController.dispose();
     super.dispose();
   }
 
@@ -39,7 +43,7 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
               '保存',
               style: TextStyle(
                 color: _selectedMood == null
-                    ? AppTheme.textHint
+                    ? AppTheme.textHintOf(context)
                     : AppTheme.primaryColor,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -82,6 +86,12 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
                 _buildSectionLabel('想说点什么？'),
                 const SizedBox(height: 12),
                 _buildNoteField(),
+                const SizedBox(height: 20),
+              ],
+
+              // 步骤 5: 日记（可选展开）
+              if (_selectedMood != null) ...[
+                _buildDiarySection(),
                 const SizedBox(height: 40),
               ],
             ],
@@ -126,7 +136,7 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
             decoration: BoxDecoration(
               color: isSelected
                   ? moodColor.withValues(alpha: 0.15)
-                  : AppTheme.cardBg,
+                  : AppTheme.cardBgOf(context),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: isSelected ? moodColor : Colors.transparent,
@@ -148,9 +158,10 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
                   style: TextStyle(
                     fontSize: 11,
                     color: isSelected
-                        ? AppTheme.textPrimary
-                        : AppTheme.textSecondary,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                        ? AppTheme.textPrimaryOf(context)
+                        : AppTheme.textSecondaryOf(context),
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ],
@@ -168,7 +179,7 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        color: AppTheme.cardBgOf(context),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -190,13 +201,15 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
                   height: 48,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: isActive ? moodColor : const Color(0xFFF0F0F0),
+                    color: isActive ? moodColor : AppTheme.dividerOf(context),
                   ),
                   child: Center(
                     child: Text(
                       '$level',
                       style: TextStyle(
-                        color: isActive ? Colors.white : AppTheme.textHint,
+                        color: isActive
+                            ? Colors.white
+                            : AppTheme.textHintOf(context),
                         fontWeight: FontWeight.bold,
                         fontSize: 18,
                       ),
@@ -259,17 +272,21 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
             decoration: BoxDecoration(
               color: isSelected
                   ? AppTheme.primaryColor.withValues(alpha: 0.12)
-                  : AppTheme.cardBg,
+                  : AppTheme.cardBgOf(context),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isSelected ? AppTheme.primaryColor : const Color(0xFFE8E8E8),
+                color: isSelected
+                    ? AppTheme.primaryColor
+                    : AppTheme.dividerOf(context),
               ),
             ),
             child: Text(
               '${tag.emoji} ${tag.label}',
               style: TextStyle(
                 fontSize: 13,
-                color: isSelected ? AppTheme.primaryColor : AppTheme.textSecondary,
+                color: isSelected
+                    ? AppTheme.primaryColor
+                    : AppTheme.textSecondaryOf(context),
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
@@ -291,6 +308,131 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
     );
   }
 
+  /// 日记区域（可选展开）
+  Widget _buildDiarySection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _showDiary = !_showDiary;
+            });
+          },
+          child: Row(
+            children: [
+              Text(
+                '写一篇日记',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                _showDiary ? Icons.expand_less : Icons.expand_more,
+                color: AppTheme.textSecondaryOf(context),
+              ),
+              const Spacer(),
+              if (_showDiary)
+                Text(
+                  '可选',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textHintOf(context),
+                      ),
+                ),
+            ],
+          ),
+        ),
+        if (_showDiary) ...[
+          const SizedBox(height: 12),
+          TextField(
+            controller: _diaryController,
+            maxLines: 12,
+            maxLength: 5000,
+            decoration: const InputDecoration(
+              hintText: '今天发生了什么？想深入写写的话，在这里记录你的故事和思考...',
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// 检测是否需要危机支持
+  bool _needsCrisisSupport() {
+    // 负面情绪类型：难过、焦虑、愤怒、孤独
+    const negativeMoods = {
+      MoodType.sad,
+      MoodType.anxious,
+      MoodType.angry,
+      MoodType.lonely,
+    };
+    // 强度 4-5 且为负面情绪时触发
+    return negativeMoods.contains(_selectedMood) && _intensity >= 4;
+  }
+
+  /// 显示危机关怀弹窗
+  void _showCrisisDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Row(
+            children: [
+              Text('🌿', style: TextStyle(fontSize: 28)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '我想关心你一下',
+                  style: TextStyle(fontSize: 20),
+                ),
+              ),
+            ],
+          ),
+          content: const Text(
+            '你记录的情绪比较强烈，如果你正在经历很大的痛苦，'
+            '或者有伤害自己的念头，请一定知道——你不是一个人，'
+            '有人愿意倾听和帮助你。\n\n'
+            '可以拨打心理援助热线，专业的接线员会陪伴你。',
+            style: TextStyle(fontSize: 15, height: 1.6),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const CrisisSupportPage(),
+                  ),
+                );
+              },
+              child: const Text(
+                '查看热线',
+                style: TextStyle(
+                  color: Color(0xFFE8B4B8),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(
+                '我没事，谢谢',
+                style: TextStyle(
+                  color: AppTheme.textSecondaryOf(context),
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   /// 保存记录
   Future<void> _onSave() async {
     if (_selectedMood == null) {
@@ -303,15 +445,19 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
       return;
     }
 
+    final needsSupport = _needsCrisisSupport();
+
     setState(() {
       _isSaving = true;
     });
 
     final note = _noteController.text.trim();
+    final diary = _diaryController.text.trim();
     await context.read<MoodProvider>().addRecord(
           moodType: _selectedMood!,
           intensity: _intensity,
           note: note.isEmpty ? null : note,
+          diary: diary.isEmpty ? null : diary,
           tags: _selectedTags.toList(),
         );
 
@@ -324,6 +470,13 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
         ),
       );
       Navigator.of(context).pop();
+
+      // 如果是高强度负面情绪，延迟弹出关怀弹窗
+      if (needsSupport) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          if (mounted) _showCrisisDialog();
+        });
+      }
     }
   }
 }

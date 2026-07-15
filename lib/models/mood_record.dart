@@ -5,10 +5,11 @@ import 'mood_type.dart';
 class MoodRecord {
   final int? id;
   final MoodType moodType;
-  final int intensity;       // 情绪强度 1-5
-  final String? note;        // 文字备注
-  final List<String> tags;   // 触发标签
-  final DateTime createdAt;  // 创建时间
+  final int intensity; // 情绪强度 1-5
+  final String? note; // 短文字备注
+  final List<String> tags; // 触发标签
+  final String? diary; // 长文本日记（v2 新增）
+  final DateTime createdAt; // 创建时间
 
   MoodRecord({
     this.id,
@@ -16,6 +17,7 @@ class MoodRecord {
     required this.intensity,
     this.note,
     required this.tags,
+    this.diary,
     required this.createdAt,
   });
 
@@ -26,9 +28,11 @@ class MoodRecord {
       moodType: MoodTypeExtension.fromIndex(map['mood_type'] as int),
       intensity: map['intensity'] as int,
       note: map['note'] as String?,
-      tags: (map['tags'] as String?) != null && (map['tags'] as String).isNotEmpty
-          ? (map['tags'] as String).split(',')
-          : [],
+      tags:
+          (map['tags'] as String?) != null && (map['tags'] as String).isNotEmpty
+              ? (map['tags'] as String).split(',')
+              : [],
+      diary: map['diary'] as String?,
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['created_at'] as int),
     );
   }
@@ -41,6 +45,7 @@ class MoodRecord {
       'intensity': intensity,
       'note': note,
       'tags': tags.join(','),
+      'diary': diary,
       'created_at': createdAt.millisecondsSinceEpoch,
     };
   }
@@ -52,6 +57,7 @@ class MoodRecord {
     int? intensity,
     String? note,
     List<String>? tags,
+    String? diary,
     DateTime? createdAt,
   }) {
     return MoodRecord(
@@ -60,6 +66,7 @@ class MoodRecord {
       intensity: intensity ?? this.intensity,
       note: note ?? this.note,
       tags: tags ?? this.tags,
+      diary: diary ?? this.diary,
       createdAt: createdAt ?? this.createdAt,
     );
   }

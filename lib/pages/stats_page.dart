@@ -85,7 +85,7 @@ class _StatsPageState extends State<StatsPage> {
                     Text(
                       '了解自己的情绪规律',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppTheme.textSecondary,
+                            color: AppTheme.textSecondaryOf(context),
                           ),
                     ),
                     const SizedBox(height: 20),
@@ -126,7 +126,7 @@ class _StatsPageState extends State<StatsPage> {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: const Color(0xFFF0F0F0),
+        color: AppTheme.dividerOf(context),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -137,7 +137,9 @@ class _StatsPageState extends State<StatsPage> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color: _isWeekly ? Colors.white : Colors.transparent,
+                  color: _isWeekly
+                      ? AppTheme.cardBgOf(context)
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: _isWeekly
                       ? [
@@ -155,7 +157,9 @@ class _StatsPageState extends State<StatsPage> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: _isWeekly ? AppTheme.primaryColor : AppTheme.textSecondary,
+                      color: _isWeekly
+                          ? AppTheme.primaryColor
+                          : AppTheme.textSecondaryOf(context),
                     ),
                   ),
                 ),
@@ -168,7 +172,9 @@ class _StatsPageState extends State<StatsPage> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 decoration: BoxDecoration(
-                  color: !_isWeekly ? Colors.white : Colors.transparent,
+                  color: !_isWeekly
+                      ? AppTheme.cardBgOf(context)
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(10),
                   boxShadow: !_isWeekly
                       ? [
@@ -186,7 +192,9 @@ class _StatsPageState extends State<StatsPage> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
-                      color: !_isWeekly ? AppTheme.primaryColor : AppTheme.textSecondary,
+                      color: !_isWeekly
+                          ? AppTheme.primaryColor
+                          : AppTheme.textSecondaryOf(context),
                     ),
                   ),
                 ),
@@ -205,7 +213,7 @@ class _StatsPageState extends State<StatsPage> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        color: AppTheme.cardBgOf(context),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -256,7 +264,8 @@ class _StatsPageState extends State<StatsPage> {
       final dayEnd = date.add(const Duration(days: 1));
 
       final dayRecords = _periodRecords.where((r) {
-        return r.createdAt.isAfter(dayStart.subtract(const Duration(milliseconds: 1))) &&
+        return r.createdAt
+                .isAfter(dayStart.subtract(const Duration(milliseconds: 1))) &&
             r.createdAt.isBefore(dayEnd);
       }).toList();
 
@@ -264,10 +273,9 @@ class _StatsPageState extends State<StatsPage> {
       if (dayRecords.isEmpty) {
         avgIntensity = 0;
       } else {
-        avgIntensity = dayRecords
-                .map((r) => r.intensity)
-                .reduce((a, b) => a + b) /
-            dayRecords.length;
+        avgIntensity =
+            dayRecords.map((r) => r.intensity).reduce((a, b) => a + b) /
+                dayRecords.length;
       }
 
       String label;
@@ -303,13 +311,9 @@ class _StatsPageState extends State<StatsPage> {
       );
     }
 
-    final spots = data.map((d) {
-      // 没有数据的点用 0，但会通过 belowBarData 控制显示
-      return FlSpot(d.x, d.y == 0 ? 0 : d.y);
-    }).toList();
-
     // 仅在连续有数据的点之间画线
-    final lineSpots = data.where((d) => d.y > 0).map((d) => FlSpot(d.x, d.y)).toList();
+    final lineSpots =
+        data.where((d) => d.y > 0).map((d) => FlSpot(d.x, d.y)).toList();
 
     final maxY = 5.0;
     final interval = _isWeekly ? 1.0 : 5.0;
@@ -321,15 +325,17 @@ class _StatsPageState extends State<StatsPage> {
           drawVerticalLine: false,
           horizontalInterval: 1,
           getDrawingHorizontalLine: (value) {
-            return const FlLine(
-              color: Color(0xFFF0F0F0),
+            return FlLine(
+              color: AppTheme.dividerOf(context),
               strokeWidth: 1,
             );
           },
         ),
         titlesData: FlTitlesData(
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles:
+              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -339,9 +345,9 @@ class _StatsPageState extends State<StatsPage> {
                 if (value == 0 || value == maxY) return const SizedBox.shrink();
                 return Text(
                   '${value.toInt()}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 10,
-                    color: AppTheme.textHint,
+                    color: AppTheme.textHintOf(context),
                   ),
                 );
               },
@@ -354,7 +360,9 @@ class _StatsPageState extends State<StatsPage> {
               reservedSize: 24,
               getTitlesWidget: (value, meta) {
                 final idx = value.toInt();
-                if (idx < 0 || idx >= data.length) return const SizedBox.shrink();
+                if (idx < 0 || idx >= data.length) {
+                  return const SizedBox.shrink();
+                }
                 // 月视图时只在部分位置显示标签
                 if (!_isWeekly && idx % 5 != 0 && idx != data.length - 1) {
                   return const SizedBox.shrink();
@@ -363,9 +371,9 @@ class _StatsPageState extends State<StatsPage> {
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
                     data[idx].label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
-                      color: AppTheme.textHint,
+                      color: AppTheme.textHintOf(context),
                     ),
                   ),
                 );
@@ -430,7 +438,7 @@ class _StatsPageState extends State<StatsPage> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        color: AppTheme.cardBgOf(context),
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -462,14 +470,14 @@ class _StatsPageState extends State<StatsPage> {
                       Text(
                         '${item.count} 次',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.textSecondary,
+                              color: AppTheme.textSecondaryOf(context),
                             ),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         '${(percent * 100).toInt()}%',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.textHint,
+                              color: AppTheme.textHintOf(context),
                             ),
                       ),
                     ],
@@ -480,7 +488,7 @@ class _StatsPageState extends State<StatsPage> {
                     child: LinearProgressIndicator(
                       value: percent,
                       minHeight: 6,
-                      backgroundColor: const Color(0xFFF0F0F0),
+                      backgroundColor: AppTheme.dividerOf(context),
                       valueColor: AlwaysStoppedAnimation<Color>(
                         Color(item.mood.colorValue),
                       ),
@@ -501,7 +509,9 @@ class _StatsPageState extends State<StatsPage> {
       counts[record.moodType] = (counts[record.moodType] ?? 0) + 1;
     }
 
-    final items = counts.entries.map((e) => _DistItem(mood: e.key, count: e.value)).toList();
+    final items = counts.entries
+        .map((e) => _DistItem(mood: e.key, count: e.value))
+        .toList();
     items.sort((a, b) => b.count.compareTo(a.count));
     return items;
   }
@@ -514,8 +524,9 @@ class _StatsPageState extends State<StatsPage> {
 
     final distribution = _computeDistribution();
     final mostFrequent = distribution.first;
-    final avgIntensity = _periodRecords.map((r) => r.intensity).reduce((a, b) => a + b) /
-        _periodRecords.length;
+    final avgIntensity =
+        _periodRecords.map((r) => r.intensity).reduce((a, b) => a + b) /
+            _periodRecords.length;
     final recordDays = _computeTrendData().where((d) => d.count > 0).length;
 
     return Container(
@@ -567,7 +578,7 @@ class _StatsPageState extends State<StatsPage> {
           Text(
             label,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.textSecondary,
+                  color: AppTheme.textSecondaryOf(context),
                 ),
           ),
           const Spacer(),

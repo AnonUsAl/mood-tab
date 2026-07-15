@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import '../theme/app_theme.dart';
 
 /// 情绪强度选择圆点
 /// 根据强度级别显示不同大小的圆点
 class IntensityDots extends StatelessWidget {
-  final int intensity;   // 1-5
+  final int intensity; // 1-5
   final int maxIntensity; // 默认 5
   final Color? color;
   final double size;
@@ -29,8 +30,8 @@ class IntensityDots extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: isActive
-                ? (color ?? const Color(0xFF7EC8B0))
-                : const Color(0xFFE0E0E0),
+                ? (color ?? AppTheme.primaryColor)
+                : AppTheme.dividerOf(context),
           ),
         );
       }),

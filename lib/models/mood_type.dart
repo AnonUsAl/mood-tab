@@ -1,16 +1,16 @@
 /// 情绪类型枚举
 /// 定义应用支持的所有情绪类型，每种情绪关联颜色、emoji 和描述
 enum MoodType {
-  happy,        // 开心
-  calm,         // 平静
-  grateful,     // 感恩
-  excited,      // 兴奋
-  neutral,      // 一般
-  tired,        // 疲惫
-  sad,          // 难过
-  anxious,      // 焦虑
-  angry,        // 愤怒
-  lonely,       // 孤独
+  happy, // 开心
+  calm, // 平静
+  grateful, // 感恩
+  excited, // 兴奋
+  neutral, // 一般
+  tired, // 疲惫
+  sad, // 难过
+  anxious, // 焦虑
+  angry, // 愤怒
+  lonely, // 孤独
 }
 
 extension MoodTypeExtension on MoodType {
@@ -70,25 +70,25 @@ extension MoodTypeExtension on MoodType {
   int get colorValue {
     switch (this) {
       case MoodType.happy:
-        return 0xFFFFB74D;   // 暖橙
+        return 0xFFFFB74D; // 暖橙
       case MoodType.calm:
-        return 0xFF81C7E4;   // 天蓝
+        return 0xFF81C7E4; // 天蓝
       case MoodType.grateful:
-        return 0xFFA5D6A7;   // 薄荷绿
+        return 0xFFA5D6A7; // 薄荷绿
       case MoodType.excited:
-        return 0xFFFF8A65;   // 珊瑚橙
+        return 0xFFFF8A65; // 珊瑚橙
       case MoodType.neutral:
-        return 0xFFB0BEC5;   // 灰蓝
+        return 0xFFB0BEC5; // 灰蓝
       case MoodType.tired:
-        return 0xFF9575CD;   // 淡紫
+        return 0xFF9575CD; // 淡紫
       case MoodType.sad:
-        return 0xFF64B5F6;   // 浅蓝
+        return 0xFF64B5F6; // 浅蓝
       case MoodType.anxious:
-        return 0xFFE57373;   // 柔红
+        return 0xFFE57373; // 柔红
       case MoodType.angry:
-        return 0xFFEF5350;   // 红
+        return 0xFFEF5350; // 红
       case MoodType.lonely:
-        return 0xFF78909C;   // 蓝灰
+        return 0xFF78909C; // 蓝灰
     }
   }
 

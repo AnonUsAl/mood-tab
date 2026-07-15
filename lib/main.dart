@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'pages/home_page.dart';
-import 'pages/history_page.dart';
+import 'pages/calendar_page.dart';
 import 'pages/stats_page.dart';
+import 'pages/settings_page.dart';
 import 'pages/mood_record_page.dart';
+import 'pages/splash_page.dart';
 import 'providers/mood_provider.dart';
 import 'theme/app_theme.dart';
 
@@ -19,13 +21,60 @@ class MoodTabApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => MoodProvider(),
-      child: MaterialApp(
-        title: 'mood-tab',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        home: const MainScaffold(),
+      child: Consumer<MoodProvider>(
+        builder: (context, provider, _) {
+          return MaterialApp(
+            title: 'mood-tab',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: provider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+            home: const _AppEntrance(),
+          );
+        },
       ),
     );
+  }
+}
+
+/// 启动入口：先显示 SplashPage，加载完成后切换到主页
+class _AppEntrance extends StatefulWidget {
+  const _AppEntrance();
+
+  @override
+  State<_AppEntrance> createState() => _AppEntranceState();
+}
+
+class _AppEntranceState extends State<_AppEntrance> {
+  bool _showSplash = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<MoodProvider>().loadAllData();
+    });
+  }
+
+  void _onSplashDone() {
+    final provider = context.read<MoodProvider>();
+    if (!provider.isLoading || provider.totalCount > 0) {
+      setState(() {
+        _showSplash = false;
+      });
+    } else {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) _onSplashDone();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showSplash) {
+      return SplashPage(onAnimationEnd: _onSplashDone);
+    }
+    return const MainScaffold();
   }
 }
 
@@ -42,12 +91,16 @@ class _MainScaffoldState extends State<MainScaffold> {
 
   final List<Widget> _pages = const [
     HomePage(),
-    HistoryPage(),
+    CalendarPage(),
     StatsPage(),
+    SettingsPage(),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bottomBarColor = isDark ? AppTheme.darkCardBg : AppTheme.cardBg;
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -74,7 +127,7 @@ class _MainScaffoldState extends State<MainScaffold> {
         shape: const CircularNotchedRectangle(),
         notchMargin: 8,
         elevation: 0,
-        color: Colors.white,
+        color: bottomBarColor,
         surfaceTintColor: Colors.transparent,
         child: SizedBox(
           height: 60,
@@ -82,10 +135,11 @@ class _MainScaffoldState extends State<MainScaffold> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildNavItem(0, Icons.home_outlined, Icons.home, '今日'),
-              _buildNavItem(1, Icons.access_time_outlined, Icons.access_time, '历史'),
+              _buildNavItem(
+                  1, Icons.calendar_month_outlined, Icons.calendar_month, '日历'),
               const SizedBox(width: 48),
               _buildNavItem(2, Icons.bar_chart_outlined, Icons.bar_chart, '统计'),
-              const SizedBox(width: 48),
+              _buildNavItem(3, Icons.person_outline, Icons.person, '我的'),
             ],
           ),
         ),
@@ -93,9 +147,13 @@ class _MainScaffoldState extends State<MainScaffold> {
     );
   }
 
-  // 底部导航用 BottomNavigationBar 更简洁
-  Widget _buildNavItem(int index, IconData icon, IconData activeIcon, String label) {
+  Widget _buildNavItem(
+      int index, IconData icon, IconData activeIcon, String label) {
     final isActive = _currentIndex == index;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final activeColor = AppTheme.primaryColor;
+    final inactiveColor = isDark ? AppTheme.darkTextHint : AppTheme.textHint;
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -111,14 +169,14 @@ class _MainScaffoldState extends State<MainScaffold> {
             Icon(
               isActive ? activeIcon : icon,
               size: 24,
-              color: isActive ? AppTheme.primaryColor : AppTheme.textHint,
+              color: isActive ? activeColor : inactiveColor,
             ),
             const SizedBox(height: 2),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11,
-                color: isActive ? AppTheme.primaryColor : AppTheme.textHint,
+                color: isActive ? activeColor : inactiveColor,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
               ),
             ),

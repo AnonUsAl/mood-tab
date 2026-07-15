@@ -87,14 +87,29 @@ class _HistoryPageState extends State<HistoryPage> {
 
     String weekday;
     switch (dt.weekday) {
-      case 1: weekday = '周一'; break;
-      case 2: weekday = '周二'; break;
-      case 3: weekday = '周三'; break;
-      case 4: weekday = '周四'; break;
-      case 5: weekday = '周五'; break;
-      case 6: weekday = '周六'; break;
-      case 7: weekday = '周日'; break;
-      default: weekday = '';
+      case 1:
+        weekday = '周一';
+        break;
+      case 2:
+        weekday = '周二';
+        break;
+      case 3:
+        weekday = '周三';
+        break;
+      case 4:
+        weekday = '周四';
+        break;
+      case 5:
+        weekday = '周五';
+        break;
+      case 6:
+        weekday = '周六';
+        break;
+      case 7:
+        weekday = '周日';
+        break;
+      default:
+        weekday = '';
     }
 
     if (diff < 7) return weekday;
@@ -108,7 +123,8 @@ class _HistoryPageState extends State<HistoryPage> {
     return '$hour:$minute';
   }
 
-  Widget _buildDateGroup(String dateLabel, List<MoodRecord> records, bool isFirst) {
+  Widget _buildDateGroup(
+      String dateLabel, List<MoodRecord> records, bool isFirst) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -119,7 +135,7 @@ class _HistoryPageState extends State<HistoryPage> {
           child: Text(
             dateLabel,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppTheme.textSecondary,
+                  color: AppTheme.textSecondaryOf(context),
                 ),
           ),
         ),
@@ -152,7 +168,7 @@ class _HistoryPageState extends State<HistoryPage> {
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppTheme.cardBg,
+              color: AppTheme.cardBgOf(context),
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
@@ -201,10 +217,11 @@ class _HistoryPageState extends State<HistoryPage> {
                           const Spacer(),
                           Text(
                             _formatTime(record.createdAt),
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: AppTheme.textHint,
-                                  fontSize: 12,
-                                ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      color: AppTheme.textHintOf(context),
+                                      fontSize: 12,
+                                    ),
                           ),
                         ],
                       ),
@@ -230,14 +247,14 @@ class _HistoryPageState extends State<HistoryPage> {
                                 vertical: 3,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF5F5F5),
+                                color: AppTheme.inputFillOf(context),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 '$emoji $tag',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 11,
-                                  color: AppTheme.textSecondary,
+                                  color: AppTheme.textSecondaryOf(context),
                                 ),
                               ),
                             );
@@ -263,7 +280,8 @@ class _HistoryPageState extends State<HistoryPage> {
         return AlertDialog(
           title: const Text('删除这条记录？'),
           content: Text('删除后无法恢复。确定要删除这条${record.moodType.label}记录吗？'),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
@@ -290,9 +308,9 @@ class _HistoryPageState extends State<HistoryPage> {
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          decoration: BoxDecoration(
+            color: AppTheme.cardBgOf(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 40),
           child: SafeArea(
@@ -307,7 +325,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     height: 4,
                     margin: const EdgeInsets.only(bottom: 20),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE0E0E0),
+                      color: AppTheme.dividerOf(context),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -350,39 +368,43 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
                 const SizedBox(height: 20),
                 // 强度
-                _buildDetailRow('情绪强度', IntensityDots(
-                  intensity: record.intensity,
-                  color: moodColor,
-                  size: 10,
-                )),
+                _buildDetailRow(
+                    '情绪强度',
+                    IntensityDots(
+                      intensity: record.intensity,
+                      color: moodColor,
+                      size: 10,
+                    )),
                 const SizedBox(height: 16),
                 // 标签
                 if (record.tags.isNotEmpty) ...[
-                  _buildDetailRow('触发标签', Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: record.tags.map((tag) {
-                      final emoji = MoodTags.emojiFor(tag) ?? '';
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: moodColor.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          '$emoji $tag',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: moodColor,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  )),
+                  _buildDetailRow(
+                      '触发标签',
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: record.tags.map((tag) {
+                          final emoji = MoodTags.emojiFor(tag) ?? '';
+                          return Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: moodColor.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              '$emoji $tag',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: moodColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      )),
                   const SizedBox(height: 16),
                 ],
                 // 备注
@@ -390,7 +412,7 @@ class _HistoryPageState extends State<HistoryPage> {
                   Text(
                     '备注',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.textSecondary,
+                          color: AppTheme.textSecondaryOf(context),
                           fontWeight: FontWeight.w600,
                         ),
                   ),
@@ -399,7 +421,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8F8F8),
+                      color: AppTheme.inputFillOf(context),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -415,9 +437,12 @@ class _HistoryPageState extends State<HistoryPage> {
                   child: OutlinedButton.icon(
                     onPressed: () async {
                       Navigator.of(ctx).pop();
-                      final shouldDelete = await _confirmDelete(context, record) ?? false;
+                      final shouldDelete =
+                          await _confirmDelete(context, record) ?? false;
                       if (shouldDelete && context.mounted) {
-                        await context.read<MoodProvider>().deleteRecord(record.id!);
+                        await context
+                            .read<MoodProvider>()
+                            .deleteRecord(record.id!);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
@@ -457,7 +482,7 @@ class _HistoryPageState extends State<HistoryPage> {
           child: Text(
             label,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textSecondary,
+                  color: AppTheme.textSecondaryOf(context),
                   fontWeight: FontWeight.w600,
                 ),
           ),

@@ -4,7 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import '../models/mood_record.dart';
 
 /// 本地 SQLite 数据库服务
-/// 所有情绪数据 100% 存储在设备本地，绝不上传云端
+/// 所有数据 100% 存储在设备本地，绝不上传云端
 class DatabaseService {
   static final DatabaseService _instance = DatabaseService._internal();
   factory DatabaseService() => _instance;
@@ -12,7 +12,6 @@ class DatabaseService {
 
   Database? _database;
 
-  /// 获取数据库实例（懒初始化）
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDatabase();
@@ -24,12 +23,12 @@ class DatabaseService {
     final dbPath = p.join(documentsDir.path, 'mood_tab.db');
     return await openDatabase(
       dbPath,
-      version: 1,
+      version: 3,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
-  /// 创建数据库表
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE mood_records (
@@ -38,53 +37,46 @@ class DatabaseService {
         intensity INTEGER NOT NULL,
         note TEXT,
         tags TEXT,
+        diary TEXT,
         created_at INTEGER NOT NULL
       )
     ''');
-
-    // 按时间查询的索引，加速历史列表和统计查询
     await db.execute(
-      'CREATE INDEX idx_mood_created_at ON mood_records(created_at)',
-    );
+        'CREATE INDEX idx_mood_created_at ON mood_records(created_at)');
   }
 
-  // ==================== CRUD 操作 ====================
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE mood_records ADD COLUMN diary TEXT');
+    }
+    // v3 的 assessment_results 表已移除，测评改为 WebView 外链
+  }
 
-  /// 插入一条情绪记录
+  // ==================== 情绪记录 CRUD ====================
+
   Future<int> insertRecord(MoodRecord record) async {
     final db = await database;
     return await db.insert('mood_records', record.toMap());
   }
 
-  /// 查询所有记录，按时间倒序
   Future<List<MoodRecord>> getAllRecords() async {
     final db = await database;
-    final maps = await db.query(
-      'mood_records',
-      orderBy: 'created_at DESC',
-    );
+    final maps = await db.query('mood_records', orderBy: 'created_at DESC');
     return maps.map(MoodRecord.fromMap).toList();
   }
 
-  /// 查询指定日期范围内的记录
   Future<List<MoodRecord>> getRecordsBetween(
-    DateTime start,
-    DateTime end,
-  ) async {
+      DateTime start, DateTime end) async {
     final db = await database;
     final maps = await db.query(
       'mood_records',
       where: 'created_at >= ? AND created_at <= ?',
-      whereArgs: [
-        start.millisecondsSinceEpoch,
-        end.millisecondsSinceEpoch,
-      ],
+      whereArgs: [start.millisecondsSinceEpoch, end.millisecondsSinceEpoch],
       orderBy: 'created_at DESC',
     );
     return maps.map(MoodRecord.fromMap).toList();
   }
 
-  /// 查询今日记录
   Future<List<MoodRecord>> getTodayRecords() async {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
@@ -92,24 +84,63 @@ class DatabaseService {
     return getRecordsBetween(startOfDay, endOfDay);
   }
 
-  /// 删除一条记录
-  Future<int> deleteRecord(int id) async {
-    final db = await database;
-    return await db.delete(
-      'mood_records',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+  Future<List<MoodRecord>> getRecordsForDay(DateTime date) async {
+    final start = DateTime(date.year, date.month, date.day);
+    final end = start.add(const Duration(days: 1));
+    return getRecordsBetween(start, end);
   }
 
-  /// 获取记录总数
+  Future<List<MoodRecord>> getDiaryRecords() async {
+    final db = await database;
+    final maps = await db.query(
+      'mood_records',
+      where: 'diary IS NOT NULL AND diary != ?',
+      whereArgs: [''],
+      orderBy: 'created_at DESC',
+    );
+    return maps.map(MoodRecord.fromMap).toList();
+  }
+
+  Future<int> deleteRecord(int id) async {
+    final db = await database;
+    return await db.delete('mood_records', where: 'id = ?', whereArgs: [id]);
+  }
+
   Future<int> getRecordCount() async {
     final db = await database;
-    final result = await db.rawQuery('SELECT COUNT(*) as count FROM mood_records');
+    final result =
+        await db.rawQuery('SELECT COUNT(*) as count FROM mood_records');
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
-  /// 关闭数据库连接
+  Future<Set<String>> getRecordedDates() async {
+    final db = await database;
+    final result =
+        await db.rawQuery('SELECT DISTINCT created_at FROM mood_records');
+    final dates = <String>{};
+    for (final row in result) {
+      final ts = row['created_at'] as int;
+      final dt = DateTime.fromMillisecondsSinceEpoch(ts);
+      dates.add('${dt.year}-${dt.month}-${dt.day}');
+    }
+    return dates;
+  }
+
+  Future<List<Map<String, dynamic>>> exportAll() async {
+    final db = await database;
+    return await db.query('mood_records', orderBy: 'created_at ASC');
+  }
+
+  Future<void> importAll(List<Map<String, dynamic>> data) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete('mood_records');
+      for (final map in data) {
+        await txn.insert('mood_records', map);
+      }
+    });
+  }
+
   Future<void> close() async {
     if (_database != null) {
       await _database!.close();

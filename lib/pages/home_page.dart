@@ -7,6 +7,8 @@ import '../theme/app_theme.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/intensity_dots.dart';
 import 'mood_record_page.dart';
+import 'diary_page.dart';
+import 'history_page.dart';
 
 /// 首页 - 今日情绪概览
 class HomePage extends StatefulWidget {
@@ -46,6 +48,8 @@ class _HomePageState extends State<HomePage> {
                   SliverToBoxAdapter(child: _buildTodaySection(provider)),
                   // 快速记录按钮
                   SliverToBoxAdapter(child: _buildQuickRecordButton()),
+                  // 快捷入口
+                  SliverToBoxAdapter(child: _buildQuickActions()),
                   const SliverToBoxAdapter(child: SizedBox(height: 24)),
                 ],
               ),
@@ -84,7 +88,7 @@ class _HomePageState extends State<HomePage> {
           Text(
             '今天的心情怎么样？',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.textSecondary,
+                  color: AppTheme.textSecondaryOf(context),
                 ),
           ),
         ],
@@ -129,7 +133,7 @@ class _HomePageState extends State<HomePage> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.cardBg,
+        color: AppTheme.cardBgOf(context),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -193,7 +197,7 @@ class _HomePageState extends State<HomePage> {
                   Text(
                     timeStr,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.textHint,
+                          color: AppTheme.textHintOf(context),
                           fontSize: 11,
                         ),
                   ),
@@ -221,6 +225,86 @@ class _HomePageState extends State<HomePage> {
           },
           icon: const Icon(Icons.edit_note, size: 22),
           label: const Text('记录此刻心情'),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActions() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildActionCard(
+              icon: Icons.menu_book_outlined,
+              label: '日记本',
+              color: const Color(0xFF9575CD),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DiaryPage()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildActionCard(
+              icon: Icons.access_time_outlined,
+              label: '历史记录',
+              color: const Color(0xFF4FC3F7),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const HistoryPage()),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionCard({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBgOf(context),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+            ),
+          ],
         ),
       ),
     );

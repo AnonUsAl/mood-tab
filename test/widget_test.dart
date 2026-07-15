@@ -1,30 +1,28 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:mood_tab/main.dart';
+import 'package:mood_tab/models/mood_record.dart';
+import 'package:mood_tab/models/mood_type.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('MoodRecord can round-trip through its database map', () {
+    final createdAt = DateTime(2026, 7, 15, 9, 30);
+    final record = MoodRecord(
+      id: 1,
+      moodType: MoodType.calm,
+      intensity: 4,
+      note: '状态不错',
+      tags: const ['工作', '睡眠'],
+      diary: '今天比较平静。',
+      createdAt: createdAt,
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    final restored = MoodRecord.fromMap(record.toMap());
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(restored.id, 1);
+    expect(restored.moodType, MoodType.calm);
+    expect(restored.intensity, 4);
+    expect(restored.note, '状态不错');
+    expect(restored.tags, ['工作', '睡眠']);
+    expect(restored.diary, '今天比较平静。');
+    expect(restored.createdAt, createdAt);
   });
 }
