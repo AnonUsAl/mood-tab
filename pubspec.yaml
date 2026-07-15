@@ -47,6 +47,9 @@ dependencies:
   # 拨打电话（危机支持热线）
   url_launcher: ^6.3.1
 
+  # 读取版本号
+  package_info_plus: ^8.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

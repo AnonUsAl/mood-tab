@@ -8,6 +8,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../providers/mood_provider.dart';
 import '../services/database_service.dart';
 import '../services/preferences_service.dart';
@@ -36,6 +37,7 @@ class _SettingsPageState extends State<SettingsPage> {
   TimeOfDay _reminderTime = const TimeOfDay(hour: 20, minute: 0);
   bool _privacyLockEnabled = false;
   String _themeMode = 'light';
+  String _version = '';
 
   @override
   void initState() {
@@ -44,6 +46,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _loadPreferences() async {
+    final packageInfo = await PackageInfo.fromPlatform();
     await _prefs.init();
     setState(() {
       _reminderEnabled = _prefs.dailyReminderEnabled;
@@ -53,6 +56,7 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       _privacyLockEnabled = _prefs.privacyLockEnabled;
       _themeMode = _prefs.themeMode;
+      _version = 'mood-tab v${packageInfo.version}';
     });
   }
 
@@ -123,7 +127,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   // 版本信息
                   Center(
                     child: Text(
-                      'mood-tab v2.1.0',
+                      _version,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppTheme.textHintOf(context),
                           ),
