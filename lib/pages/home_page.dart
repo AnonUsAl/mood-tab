@@ -9,6 +9,8 @@ import '../widgets/intensity_dots.dart';
 import 'mood_record_page.dart';
 import 'diary_page.dart';
 import 'history_page.dart';
+import 'breathing_exercise_page.dart';
+import 'mood_garden_page.dart';
 
 /// 首页 - 今日情绪概览
 class HomePage extends StatefulWidget {
@@ -44,6 +46,8 @@ class _HomePageState extends State<HomePage> {
                 slivers: [
                   // 问候语头部
                   SliverToBoxAdapter(child: _buildHeader()),
+                  // 情绪天气播报
+                  SliverToBoxAdapter(child: _buildWeatherForecast(provider)),
                   // 今日情绪卡片
                   SliverToBoxAdapter(child: _buildTodaySection(provider)),
                   // 快速记录按钮
@@ -92,6 +96,210 @@ class _HomePageState extends State<HomePage> {
             '今天的心情怎么样？',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppTheme.textSecondaryOf(context),
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 情绪天气播报
+  Widget _buildWeatherForecast(MoodProvider provider) {
+    final todayRecords = provider.todayRecords;
+    final allRecords = provider.allRecords;
+
+    // 没有足够数据时不显示天气播报
+    if (allRecords.isEmpty) return const SizedBox.shrink();
+
+    // 计算今日天气
+    String weatherEmoji;
+    String weatherDesc;
+    Color weatherColor;
+
+    if (todayRecords.isEmpty) {
+      // 今日还没记录 — 根据历史趋势播报
+      weatherEmoji = '🌤️';
+      weatherDesc = '新的一天，心情待记录';
+      weatherColor = const Color(0xFF81C7E4);
+    } else {
+      // 今日已有记录 — 根据主导情绪播报
+      final dominant = _getDominantMood(todayRecords);
+
+      // 情绪→天气映射
+      final weatherMap = {
+        MoodType.happy: ('☀️', '心情晴朗，阳光灿烂', const Color(0xFFFFB74D)),
+        MoodType.excited: ('⛅', '热情洋溢，风起云涌', const Color(0xFFFF8A65)),
+        MoodType.calm: ('🌤️', '内心平静，微风轻拂', const Color(0xFF81C7E4)),
+        MoodType.grateful: ('🌈', '感恩满溢，彩虹初现', const Color(0xFFA5D6A7)),
+        MoodType.neutral: ('☁️', '波澜不惊，云层平稳', const Color(0xFFB0BEC5)),
+        MoodType.tired: ('🌫️', '精力低迷，晨雾弥漫', const Color(0xFF9575CD)),
+        MoodType.sad: ('🌧️', '情绪低落，细雨绵绵', const Color(0xFF64B5F6)),
+        MoodType.anxious: ('⛈️', '内心不安，雷雨将至', const Color(0xFFE57373)),
+        MoodType.angry: ('🔥', '怒火中烧，高温预警', const Color(0xFFEF5350)),
+        MoodType.lonely: ('❄️', '孤立感加重，霜降时节', const Color(0xFF78909C)),
+      };
+
+      final w = weatherMap[dominant]!;
+      weatherEmoji = w.$1;
+      weatherDesc = w.$2;
+      weatherColor = w.$3;
+    }
+
+    // 周趋势
+    String trendText;
+    final weekRecords = allRecords.where((r) {
+      final now = DateTime.now();
+      final diff = now.difference(r.createdAt);
+      return diff.inDays <= 7;
+    }).toList();
+
+    if (weekRecords.length < 3) {
+      trendText = '数据积累中 📊';
+    } else {
+      // 看近3天 vs 前4天的趋势
+      final now = DateTime.now();
+      final recent3 = weekRecords.where((r) {
+        return now.difference(r.createdAt).inDays <= 3;
+      }).toList();
+      final earlier4 = weekRecords.where((r) {
+        final diff = now.difference(r.createdAt).inDays;
+        return diff > 3 && diff <= 7;
+      }).toList();
+
+      if (earlier4.isEmpty) {
+        trendText = '正在起步 🌱';
+      } else {
+        final recentAvg = recent3.isEmpty
+            ? 0
+            : recent3.map((r) => r.intensity).reduce((a, b) => a + b) /
+                recent3.length;
+        final earlierAvg = earlier4
+                .map((r) => r.intensity)
+                .reduce((a, b) => a + b) /
+            earlier4.length;
+
+        final diff = recentAvg - earlierAvg;
+        if (diff > 0.3) {
+          trendText = '升温中 📈';
+        } else if (diff < -0.3) {
+          trendText = '降温中 📉';
+        } else {
+          trendText = '平稳 📊';
+        }
+      }
+    }
+
+    // 降雨概率（负面情绪占比）
+    final negativeMoods = [
+      MoodType.sad,
+      MoodType.anxious,
+      MoodType.angry,
+      MoodType.lonely,
+      MoodType.tired,
+    ];
+    final negativeCount = weekRecords
+        .where((r) => negativeMoods.contains(r.moodType))
+        .length;
+    final rainProb =
+        weekRecords.isEmpty ? 0 : (negativeCount / weekRecords.length * 100).round();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              weatherColor.withValues(alpha: 0.12),
+              weatherColor.withValues(alpha: 0.04),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: weatherColor.withValues(alpha: 0.2),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 天气标题
+            Row(
+              children: [
+                Text(
+                  weatherEmoji,
+                  style: const TextStyle(fontSize: 28),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '情绪天气预报',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: weatherColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        weatherDesc,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w500,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // 底部数据
+            Row(
+              children: [
+                _buildWeatherStat('周趋势', trendText),
+                const SizedBox(width: 16),
+                _buildWeatherStat('情绪降雨', '${rainProb}%'),
+                const SizedBox(width: 16),
+                _buildWeatherStat('本周记录', '${weekRecords.length}条'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  MoodType _getDominantMood(List<MoodRecord> records) {
+    final counts = <MoodType, int>{};
+    for (final r in records) {
+      counts[r.moodType] = (counts[r.moodType] ?? 0) + 1;
+    }
+    final sorted = counts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.first.key;
+  }
+
+  Widget _buildWeatherStat(String label, String value) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.textHintOf(context),
+                  fontSize: 11,
+                ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w600,
                 ),
           ),
         ],
@@ -240,8 +448,36 @@ class _HomePageState extends State<HomePage> {
         children: [
           Expanded(
             child: _buildActionCard(
+              icon: Icons.local_florist,
+              label: '花园',
+              color: const Color(0xFFA5D6A7),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const MoodGardenPage()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildActionCard(
+              icon: Icons.air,
+              label: '呼吸',
+              color: const Color(0xFF8BE9C1),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const BreathingExercisePage()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildActionCard(
               icon: Icons.menu_book_outlined,
-              label: '日记本',
+              label: '日记',
               color: const Color(0xFF9575CD),
               onTap: () {
                 Navigator.of(context).push(
@@ -250,11 +486,11 @@ class _HomePageState extends State<HomePage> {
               },
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: _buildActionCard(
               icon: Icons.access_time_outlined,
-              label: '历史记录',
+              label: '历史',
               color: const Color(0xFF4FC3F7),
               onTap: () {
                 Navigator.of(context).push(
