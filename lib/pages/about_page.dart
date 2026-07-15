@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../theme/app_theme.dart';
 
-/// 关于作者页面 - WebView 套壳加载 anonusal.github.io
+/// 关于作者页面 - WebView 加载本地 HTML（终端风格个人主页）
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
 
@@ -19,7 +19,7 @@ class _AboutPageState extends State<AboutPage> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFFFAF9F6))
+      ..setBackgroundColor(const Color(0xFF0A0D12))
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) {
@@ -34,7 +34,7 @@ class _AboutPageState extends State<AboutPage> {
           },
         ),
       )
-      ..loadRequest(Uri.parse('https://anonusal.github.io/'));
+      ..loadFlutterAsset('assets/about.html');
   }
 
   @override
@@ -63,7 +63,7 @@ class _AboutPageState extends State<AboutPage> {
           WebViewWidget(controller: _controller),
           if (_isLoading)
             Container(
-              color: AppTheme.scaffoldBgOf(context),
+              color: const Color(0xFF0A0D12),
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -73,14 +73,14 @@ class _AboutPageState extends State<AboutPage> {
                       height: 32,
                       child: CircularProgressIndicator(
                         strokeWidth: 3,
-                        color: AppTheme.primaryColor,
+                        color: Color(0xFF8BE9C1),
                       ),
                     ),
                     const SizedBox(height: 16),
                     Text(
                       '正在加载...',
                       style: TextStyle(
-                        color: AppTheme.textSecondaryOf(context),
+                        color: const Color(0xFF5C6B7A),
                         fontSize: 14,
                       ),
                     ),
