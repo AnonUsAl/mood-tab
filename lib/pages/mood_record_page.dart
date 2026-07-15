@@ -369,70 +369,6 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
     return negativeMoods.contains(_selectedMood) && _intensity >= 4;
   }
 
-  /// 显示危机关怀弹窗
-  void _showCrisisDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: const Row(
-            children: [
-              Text('🌿', style: TextStyle(fontSize: 28)),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '我想关心你一下',
-                  style: TextStyle(fontSize: 20),
-                ),
-              ),
-            ],
-          ),
-          content: const Text(
-            '你记录的情绪比较强烈，如果你正在经历很大的痛苦，'
-            '或者有伤害自己的念头，请一定知道——你不是一个人，'
-            '有人愿意倾听和帮助你。\n\n'
-            '可以拨打心理援助热线，专业的接线员会陪伴你。',
-            style: TextStyle(fontSize: 15, height: 1.6),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const CrisisSupportPage(),
-                  ),
-                );
-              },
-              child: const Text(
-                '查看热线',
-                style: TextStyle(
-                  color: Color(0xFFE8B4B8),
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(
-                '我没事，谢谢',
-                style: TextStyle(
-                  color: AppTheme.textSecondaryOf(context),
-                  fontSize: 16,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   /// 保存记录
   Future<void> _onSave() async {
     if (_selectedMood == null) {
@@ -446,6 +382,7 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
     }
 
     final needsSupport = _needsCrisisSupport();
+    final navigator = Navigator.of(context);
 
     setState(() {
       _isSaving = true;
@@ -469,12 +406,14 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
           backgroundColor: AppTheme.primaryColor,
         ),
       );
-      Navigator.of(context).pop();
+      navigator.pop();
 
       // 如果是高强度负面情绪，延迟弹出关怀弹窗
       if (needsSupport) {
         Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted) _showCrisisDialog();
+          if (navigator.mounted) {
+            showCrisisSupportDialog(navigator.context);
+          }
         });
       }
     }
