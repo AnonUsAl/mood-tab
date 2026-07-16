@@ -96,7 +96,7 @@ lib/
 
 - Flutter SDK >= 3.5.0
 - Dart SDK >= 3.5.0
-- Android Studio / Xcode（如需运行模拟器）
+- Android Studio 但是本人实测之后发现腾讯应用宝出奇的好 / Xcode（如需运行模拟器）
 
 ### 运行步骤
 
