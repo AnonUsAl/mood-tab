@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
@@ -14,17 +15,22 @@ class NotificationService {
 
   static const int _dailyReminderIdBase = 100;
   static const int _maxDailyReminderTimes = 10;
+  static const int _medReminderIdBase = 200;
+  static const int _maxMedReminders = 800; // 80 药物 × 10 时间点
   static const String _channelId = 'daily_reminder';
   static const String _channelName = '每日情绪记录提醒';
   static const String _medChannelId = 'medication_reminder';
   static const String _medChannelName = '用药提醒';
 
   bool _initialized = false;
+  /// 缓存精确闹钟权限状态，避免重复尝试失败
+  bool? _canUseExactAlarm;
 
   Future<void> init() async {
     if (_initialized) return;
     tz_data.initializeTimeZones();
-    tz.setLocalLocation(tz.getLocation('Asia/Shanghai'));
+    _updateLocalTimeZone();
+    _canUseExactAlarm = null; // 初始化时重置权限缓存
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
@@ -36,8 +42,32 @@ class NotificationService {
       android: androidSettings,
       iOS: iosSettings,
     );
-    await _plugin.initialize(settings);
+    await _plugin.initialize(
+      settings,
+      onDidReceiveNotificationResponse: _onNotificationResponse,
+    );
     _initialized = true;
+  }
+
+  /// 通知点击回调 — 确保应用被通知唤醒时能正确响应
+  static void _onNotificationResponse(NotificationResponse response) {
+    debugPrint('Notification tapped: id=${response.id}, payload=${response.payload}');
+  }
+
+  /// 根据用户设置的时区更新 tz.local
+  void _updateLocalTimeZone() {
+    final prefs = PreferencesService();
+    final tzName = prefs.timeZone;
+    try {
+      tz.setLocalLocation(tz.getLocation(tzName));
+    } catch (_) {
+      tz.setLocalLocation(tz.getLocation('Asia/Shanghai'));
+    }
+  }
+
+  /// 用户更改时区后调用，重新初始化时区并重新调度通知
+  Future<void> refreshTimeZone() async {
+    _updateLocalTimeZone();
   }
 
   Future<bool> requestPermissions() async {
@@ -59,12 +89,79 @@ class NotificationService {
     return true;
   }
 
-  Future<void> requestExactAlarmPermission() async {
+  Future<bool> requestExactAlarmPermission() async {
     final androidImpl = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     if (androidImpl != null) {
-      await androidImpl.requestExactAlarmsPermission();
+      try {
+        return await androidImpl.requestExactAlarmsPermission() ?? false;
+      } catch (e) {
+        debugPrint('requestExactAlarmsPermission error: $e');
+        return false;
+      }
     }
+    return true;
+  }
+
+  /// 检查当前是否拥有精确闹钟权限（Android 12+）
+  /// 返回 true 表示可以使用 exactAllowWhileIdle / alarmClock 模式
+  Future<bool> canScheduleExactAlarms() async {
+    if (!_initialized) await init();
+    final androidImpl = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidImpl == null) return true; // 非 Android 平台视为有权限
+    try {
+      return await androidImpl.canScheduleExactNotifications() ?? false;
+    } catch (e) {
+      debugPrint('canScheduleExactAlarms error: $e');
+      return false;
+    }
+  }
+
+  /// 检查是否拥有精确闹钟权限，没有则尝试请求
+  /// 仅在闹钟模式下需要调用
+  Future<bool> _ensureExactAlarm() async {
+    // 如果已知没有权限，直接返回 false 避免重复尝试
+    if (_canUseExactAlarm == false) return false;
+
+    final androidImpl = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidImpl == null) return true; // 非 Android 平台
+    try {
+      final canSchedule = await androidImpl.canScheduleExactNotifications();
+      if (canSchedule == true) {
+        _canUseExactAlarm = true;
+        return true;
+      }
+      // 没有精确闹钟权限，尝试请求
+      final granted = await androidImpl.requestExactAlarmsPermission() ?? false;
+      if (granted) {
+        _canUseExactAlarm = true;
+        return true;
+      }
+      // 请求后再次检查（用户可能已手动开启）
+      final recheck = await androidImpl.canScheduleExactNotifications();
+      if (recheck == true) {
+        _canUseExactAlarm = true;
+        return true;
+      }
+    } catch (e) {
+      debugPrint('_ensureExactAlarm permission check error: $e');
+    }
+    // 如果 canScheduleExactAlarms 返回 false，但应用声明了 USE_EXACT_ALARM
+    // 乐观尝试精确模式，失败时会由上层捕获 exact_alarms_not_permitted 回退
+    return true;
+  }
+
+  /// 根据提醒风格选择调度模式
+  /// 闹钟模式：需要精确闹钟权限，确保精准触发
+  /// 通知模式：使用不精确模式即可，不主动请求精确闹钟权限
+  AndroidScheduleMode _resolveScheduleMode(String stylePreference, bool hasExactAlarm) {
+    if (stylePreference == 'alarm' && hasExactAlarm) {
+      return AndroidScheduleMode.exactAllowWhileIdle;
+    }
+    // 通知模式或闹钟模式但无精确闹钟权限：使用不精确模式
+    return AndroidScheduleMode.inexactAllowWhileIdle;
   }
 
   AndroidNotificationDetails _androidDetails({
@@ -83,6 +180,8 @@ class NotificationService {
         enableVibration: true,
         playSound: true,
         category: AndroidNotificationCategory.alarm,
+        fullScreenIntent: true,
+        visibility: NotificationVisibility.public,
       );
     }
     return AndroidNotificationDetails(
@@ -91,6 +190,7 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
       icon: '@drawable/ic_notification',
+      visibility: NotificationVisibility.public,
     );
   }
 
@@ -113,21 +213,23 @@ class NotificationService {
 
   Future<void> scheduleDailyReminder(List<String> times) async {
     if (!_initialized) await init();
-    await requestPermissions();
-    await requestExactAlarmPermission();
+    final hasExactAlarm = await _ensureExactAlarm();
     await cancelDailyReminders();
 
     final prefs = PreferencesService();
+    final stylePref = prefs.dailyReminderStyle;
     final androidDetails = _androidDetails(
       channelId: _channelId,
       channelName: _channelName,
       channelDescription: '每天定时提醒你记录情绪',
-      stylePreference: prefs.dailyReminderStyle,
+      stylePreference: stylePref,
     );
-    final iosDetails = _iosDetails(prefs.dailyReminderStyle);
+    final iosDetails = _iosDetails(stylePref);
     final details = NotificationDetails(
       android: androidDetails, iOS: iosDetails,
     );
+
+    var scheduleMode = _resolveScheduleMode(stylePref, hasExactAlarm);
 
     for (int i = 0; i < times.length && i < _maxDailyReminderTimes; i++) {
       final parts = times[i].split(':');
@@ -144,17 +246,39 @@ class NotificationService {
         scheduled = scheduled.add(const Duration(days: 1));
       }
 
-      await _plugin.zonedSchedule(
-        _dailyReminderIdBase + i,
-        '记录此刻的心情 🌿',
-        '花一分钟，写下今天的情绪吧',
-        scheduled,
-        details,
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.time,
-      );
+      try {
+        await _plugin.zonedSchedule(
+          _dailyReminderIdBase + i,
+          '记录此刻的心情 🌿',
+          '花一分钟，写下今天的情绪吧',
+          scheduled,
+          details,
+          androidScheduleMode: scheduleMode,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          matchDateTimeComponents: DateTimeComponents.time,
+        );
+      } on PlatformException catch (e) {
+        if (e.code == 'exact_alarms_not_permitted' &&
+            scheduleMode != AndroidScheduleMode.inexactAllowWhileIdle) {
+          // 原生层拒绝精确闹钟，回退到不精确模式重新调度
+          _canUseExactAlarm = false;
+          scheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
+          await _plugin.zonedSchedule(
+            _dailyReminderIdBase + i,
+            '记录此刻的心情 🌿',
+            '花一分钟，写下今天的情绪吧',
+            scheduled,
+            details,
+            androidScheduleMode: scheduleMode,
+            uiLocalNotificationDateInterpretation:
+                UILocalNotificationDateInterpretation.absoluteTime,
+            matchDateTimeComponents: DateTimeComponents.time,
+          );
+        } else {
+          rethrow;
+        }
+      }
     }
   }
 
@@ -174,8 +298,7 @@ class NotificationService {
     required int minute,
   }) async {
     if (!_initialized) await init();
-    await requestPermissions();
-    await requestExactAlarmPermission();
+    final hasExactAlarm = await _ensureExactAlarm();
 
     final now = tz.TZDateTime.now(tz.local);
     var scheduled = tz.TZDateTime(
@@ -186,37 +309,66 @@ class NotificationService {
     }
 
     final prefs = PreferencesService();
+    final stylePref = prefs.medicationReminderStyle;
     final androidDetails = _androidDetails(
       channelId: _medChannelId,
       channelName: _medChannelName,
       channelDescription: '药物服用提醒',
-      stylePreference: prefs.medicationReminderStyle,
+      stylePreference: stylePref,
     );
-    final iosDetails = _iosDetails(prefs.medicationReminderStyle);
+    final iosDetails = _iosDetails(stylePref);
     final details = NotificationDetails(
       android: androidDetails, iOS: iosDetails,
     );
 
-    await _plugin.zonedSchedule(
-      notificationId,
-      '该吃药了 💊 $name',
-      '剂量：$dosage · 记得按时服药哦',
-      scheduled,
-      details,
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
-  }
+    var scheduleMode = _resolveScheduleMode(stylePref, hasExactAlarm);
 
-  Future<void> cancelMedicationReminder(int medicationId) async {
-    for (int i = 0; i < 10; i++) {
-      await _plugin.cancel(medicationId * 10 + i);
+    try {
+      await _plugin.zonedSchedule(
+        notificationId,
+        '该吃药了 💊 $name',
+        '剂量：$dosage · 记得按时服药哦',
+        scheduled,
+        details,
+        androidScheduleMode: scheduleMode,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    } on PlatformException catch (e) {
+      if (e.code == 'exact_alarms_not_permitted' &&
+          scheduleMode != AndroidScheduleMode.inexactAllowWhileIdle) {
+        // 原生层拒绝精确闹钟，回退到不精确模式重新调度
+        _canUseExactAlarm = false;
+        scheduleMode = AndroidScheduleMode.inexactAllowWhileIdle;
+        await _plugin.zonedSchedule(
+          notificationId,
+          '该吃药了 💊 $name',
+          '剂量：$dosage · 记得按时服药哦',
+          scheduled,
+          details,
+          androidScheduleMode: scheduleMode,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          matchDateTimeComponents: DateTimeComponents.time,
+        );
+      } else {
+        rethrow;
+      }
     }
   }
 
+  Future<void> cancelMedicationReminder(int medIndex) async {
+    for (int i = 0; i < 10; i++) {
+      await _plugin.cancel(_medReminderIdBase + medIndex * 10 + i);
+    }
+  }
+
+  /// 取消所有药物提醒（不影响每日提醒）
   Future<void> cancelAllMedicationReminders() async {
-    await _plugin.cancelAll();
+    // 只取消药物提醒范围内的 ID（200~999），避免误删每日提醒（100~109）
+    for (int i = 0; i < _maxMedReminders; i++) {
+      await _plugin.cancel(_medReminderIdBase + i);
+    }
   }
 }

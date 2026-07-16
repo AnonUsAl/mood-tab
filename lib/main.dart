@@ -85,26 +85,48 @@ class _AppEntranceState extends State<_AppEntrance>
 
   Future<void> _onSplashDone() async {
     final provider = context.read<MoodProvider>();
-    if (!provider.isLoading || provider.totalCount > 0) {
+    // 等待 provider 加载完成，不再依赖 totalCount 条件
+    int retries = 0;
+    while (provider.isLoading && retries < 50) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      if (!mounted) return;
+      retries++;
+    }
+    if (!mounted) return;
+
+    try {
       await _preferences.init();
       await _notifications.init();
       await _notifications.requestPermissions();
+    } catch (e) {
+      debugPrint('Initialization error: $e');
+    }
+
+    // 单独请求精确闹钟权限，避免抛异常中断后续通知调度
+    try {
       await _notifications.requestExactAlarmPermission();
+    } catch (e) {
+      debugPrint('Request exact alarm permission error: $e');
+    }
+
+    if (!mounted) return;
+    try {
       if (_preferences.dailyReminderEnabled && _preferences.dailyReminderTimes.isNotEmpty) {
         await _notifications.scheduleDailyReminder(_preferences.dailyReminderTimes);
       }
-      if (!mounted) return;
-      final hasValidPin = _preferences.pinCode.length == 4;
-      setState(() {
-        _showSplash = false;
-        _preferencesReady = true;
-        _isLocked = _preferences.privacyLockEnabled && hasValidPin;
-      });
-    } else {
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) _onSplashDone();
-      });
+      // 启动时重新调度所有药物提醒（应对设备重启等场景）
+      await provider.rescheduleMedicationReminders();
+    } catch (e) {
+      debugPrint('Schedule notification error: $e');
     }
+
+    if (!mounted) return;
+    final hasValidPin = _preferences.pinCode.length == 4;
+    setState(() {
+      _showSplash = false;
+      _preferencesReady = true;
+      _isLocked = _preferences.privacyLockEnabled && hasValidPin;
+    });
   }
 
   @override

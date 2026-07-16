@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 import '../models/mood_type.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +21,7 @@ import 'about_page.dart';
 import 'software_info_page.dart';
 import 'assessment_web_page.dart';
 import 'crisis_support_page.dart';
+import 'urge_log_page.dart';
 import 'medication_reminder_page.dart';
 import 'tag_management_page.dart';
 import 'warm_words_page.dart';
@@ -47,6 +47,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String _version = '';
   String _dailyReminderStyle = 'notification';
   String _medicationReminderStyle = 'notification';
+  bool _hasExactAlarmPermission = true;
 
   @override
   void initState() {
@@ -57,6 +58,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadPreferences() async {
     final packageInfo = await PackageInfo.fromPlatform();
     await _prefs.init();
+    await _checkExactAlarmPermission();
     setState(() {
       _reminderEnabled = _prefs.dailyReminderEnabled;
       _reminderTimes = _prefs.dailyReminderTimes;
@@ -66,6 +68,18 @@ class _SettingsPageState extends State<SettingsPage> {
       _dailyReminderStyle = _prefs.dailyReminderStyle;
       _medicationReminderStyle = _prefs.medicationReminderStyle;
     });
+  }
+
+  /// 检查精确闹钟权限状态，用于 UI 提示
+  Future<void> _checkExactAlarmPermission() async {
+    try {
+      final hasPermission = await _notifications.canScheduleExactAlarms();
+      if (mounted) {
+        setState(() => _hasExactAlarmPermission = hasPermission);
+      }
+    } catch (e) {
+      debugPrint('Check exact alarm permission error: $e');
+    }
   }
 
   @override
@@ -438,6 +452,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildReminderStyleSelector(
             label: '提醒方式',
             value: _dailyReminderStyle,
+            showPermissionWarning: _dailyReminderStyle == 'alarm' && !_hasExactAlarmPermission,
             onChanged: (style) async {
               await _prefs.setDailyReminderStyle(style);
               setState(() => _dailyReminderStyle = style);
@@ -450,19 +465,17 @@ class _SettingsPageState extends State<SettingsPage> {
         ] else
           _buildDivider(),
         // 用药提醒风格
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: _buildReminderStyleSelector(
-            label: '用药提醒方式',
-            value: _medicationReminderStyle,
-            onChanged: (style) async {
-              await _prefs.setMedicationReminderStyle(style);
-              setState(() => _medicationReminderStyle = style);
-              // 通知 provider 重新调度用药提醒
-              final provider = context.read<MoodProvider>();
-              await provider.rescheduleMedicationReminders();
-            },
-          ),
+        _buildReminderStyleSelector(
+          label: '用药提醒方式',
+          value: _medicationReminderStyle,
+          showPermissionWarning: _medicationReminderStyle == 'alarm' && !_hasExactAlarmPermission,
+          onChanged: (style) async {
+            await _prefs.setMedicationReminderStyle(style);
+            setState(() => _medicationReminderStyle = style);
+            // 通知 provider 重新调度用药提醒
+            final provider = context.read<MoodProvider>();
+            await provider.rescheduleMedicationReminders();
+          },
         ),
         _buildDivider(),
         _buildActionTile(
@@ -745,6 +758,7 @@ class _SettingsPageState extends State<SettingsPage> {
   // ==================== 个性化 ====================
 
   Widget _buildPersonalizationSection() {
+    final prefs = PreferencesService();
     return _buildCard(
       children: [
         _buildActionTile(
@@ -753,12 +767,22 @@ class _SettingsPageState extends State<SettingsPage> {
           title: '标签管理',
           subtitle: '自定义情绪触发标签',
           isFirst: true,
-          isLast: true,
+          isLast: false,
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const TagManagementPage()),
             );
           },
+        ),
+        _buildDivider(),
+        _buildActionTile(
+          icon: Icons.schedule_outlined,
+          iconColor: const Color(0xFF5C6BC0),
+          title: '时区设置',
+          subtitle: _timeZoneDisplayName(prefs.timeZone),
+          isFirst: false,
+          isLast: true,
+          onTap: _showTimeZonePicker,
         ),
       ],
     );
@@ -821,6 +845,19 @@ class _SettingsPageState extends State<SettingsPage> {
           onTap: () {
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const CrisisSupportPage()),
+            );
+          },
+        ),
+        _buildActionTile(
+          icon: Icons.self_improvement_outlined,
+          iconColor: const Color(0xFF64B5F6),
+          title: '情绪安全记录',
+          subtitle: '觉察冲动与应对 · 温柔照顾自己',
+          isFirst: false,
+          isLast: false,
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const UrgeLogPage()),
             );
           },
         ),
@@ -983,24 +1020,51 @@ class _SettingsPageState extends State<SettingsPage> {
     required String label,
     required String value,
     required ValueChanged<String> onChanged,
+    bool showPermissionWarning = false,
   }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.bodyMedium),
-        SegmentedButton<String>(
-          style: SegmentedButton.styleFrom(
-            selectedBackgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
-            selectedForegroundColor: AppTheme.primaryColor,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<String>(
+              style: SegmentedButton.styleFrom(
+                selectedBackgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
+                selectedForegroundColor: AppTheme.primaryColor,
+              ),
+              segments: const [
+                ButtonSegment(value: 'notification', label: Text('系统通知')),
+                ButtonSegment(value: 'alarm', label: Text('闹钟')),
+              ],
+              selected: {value},
+              onSelectionChanged: (newVal) => onChanged(newVal.first),
+            ),
           ),
-          segments: const [
-            ButtonSegment(value: 'notification', label: Text('系统通知')),
-            ButtonSegment(value: 'alarm', label: Text('闹钟')),
+          if (showPermissionWarning) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.warning_amber_rounded,
+                    size: 16, color: Colors.orange.shade600),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '精确闹钟权限未开启，通知将以普通模式送达',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.orange.shade700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ],
-          selected: {value},
-          onSelectionChanged: (newVal) => onChanged(newVal.first),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1017,7 +1081,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
       final buffer = StringBuffer();
       buffer.write('\uFEFF');
-      buffer.writeln('日期,时间,情绪,强度,备注,标签,日记');
+      buffer.writeln('日期,时间,情绪,强度,备注,标签,日记,日记图片');
 
       for (final r in records) {
         final date =
@@ -1029,7 +1093,8 @@ class _SettingsPageState extends State<SettingsPage> {
         final note = _escapeCsv(r.note ?? '');
         final tags = _escapeCsv(r.tags.join(';'));
         final diary = _escapeCsv(r.diary ?? '');
-        buffer.writeln('$date,$time,$mood,$intensity,$note,$tags,$diary');
+        final diaryImages = _escapeCsv(r.diaryImages.join(';'));
+        buffer.writeln('$date,$time,$mood,$intensity,$note,$tags,$diary,$diaryImages');
       }
 
       final dir = await getTemporaryDirectory();
@@ -1191,5 +1256,108 @@ class _SettingsPageState extends State<SettingsPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
+  }
+
+  // ==================== 时区选择 ====================
+
+  /// 常用时区列表
+  static const _timeZones = [
+    {'name': 'Asia/Shanghai', 'label': '中国标准时间 (UTC+8)'},
+    {'name': 'Asia/Hong_Kong', 'label': '香港时间 (UTC+8)'},
+    {'name': 'Asia/Taipei', 'label': '台北时间 (UTC+8)'},
+    {'name': 'Asia/Tokyo', 'label': '日本标准时间 (UTC+9)'},
+    {'name': 'Asia/Seoul', 'label': '韩国标准时间 (UTC+9)'},
+    {'name': 'Asia/Singapore', 'label': '新加坡时间 (UTC+8)'},
+    {'name': 'Asia/Bangkok', 'label': '泰国时间 (UTC+7)'},
+    {'name': 'Asia/Kolkata', 'label': '印度时间 (UTC+5:30)'},
+    {'name': 'Asia/Dubai', 'label': '海湾标准时间 (UTC+4)'},
+    {'name': 'Europe/London', 'label': '英国时间 (UTC+0/+1)'},
+    {'name': 'Europe/Paris', 'label': '中欧时间 (UTC+1/+2)'},
+    {'name': 'Europe/Moscow', 'label': '莫斯科时间 (UTC+3)'},
+    {'name': 'America/New_York', 'label': '美东时间 (UTC-5/-4)'},
+    {'name': 'America/Chicago', 'label': '美中时间 (UTC-6/-5)'},
+    {'name': 'America/Denver', 'label': '美山时间 (UTC-7/-6)'},
+    {'name': 'America/Los_Angeles', 'label': '美西时间 (UTC-8/-7)'},
+    {'name': 'America/Toronto', 'label': '加拿大多伦多 (UTC-5/-4)'},
+    {'name': 'America/Sao_Paulo', 'label': '巴西圣保罗 (UTC-3)'},
+    {'name': 'Australia/Sydney', 'label': '澳洲悉尼 (UTC+10/+11)'},
+    {'name': 'Pacific/Auckland', 'label': '新西兰 (UTC+12/+13)'},
+  ];
+
+  String _timeZoneDisplayName(String tzName) {
+    for (final tz in _timeZones) {
+      if (tz['name'] == tzName) return tz['label']!;
+    }
+    return tzName;
+  }
+
+  Future<void> _showTimeZonePicker() async {
+    final prefs = PreferencesService();
+    final current = prefs.timeZone;
+
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        String tempSelection = current;
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            return AlertDialog(
+              title: const Text('选择时区'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _timeZones.length,
+                  itemBuilder: (ctx, index) {
+                    final tz = _timeZones[index];
+                    final isSelected = tz['name'] == tempSelection;
+                    return RadioListTile<String>(
+                      value: tz['name']!,
+                      groupValue: tempSelection,
+                      title: Text(tz['label']!),
+                      dense: true,
+                      activeColor: AppTheme.primaryColor,
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => tempSelection = value);
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('取消'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(tempSelection),
+                  child: const Text('确定'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (selected != null && selected != current) {
+      await prefs.setTimeZone(selected);
+      // 刷新通知服务的时区
+      final notifications = NotificationService();
+      await notifications.refreshTimeZone();
+      // 重新调度每日提醒
+      if (prefs.dailyReminderEnabled && prefs.dailyReminderTimes.isNotEmpty) {
+        await notifications.scheduleDailyReminder(prefs.dailyReminderTimes);
+      }
+      // 重新调度药物提醒
+      if (context.mounted) {
+        final provider = context.read<MoodProvider>();
+        await provider.rescheduleMedicationReminders();
+      }
+      setState(() {});
+      _showSnackBar('时区已更改为 ${_timeZoneDisplayName(selected)}');
+    }
   }
 }
