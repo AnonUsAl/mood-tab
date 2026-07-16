@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:photo_view/photo_view.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../theme/app_theme.dart';
 
@@ -417,7 +416,7 @@ class _ConflictCarePageState extends State<ConflictCarePage> {
   }
 }
 
-/// 图片全屏查看器（使用 photo_view）
+/// 图片全屏查看器（使用 InteractiveViewer，无需第三方依赖）
 class _CareImageViewer extends StatelessWidget {
   final Map<String, dynamic> card;
 
@@ -432,165 +431,86 @@ class _CareImageViewer extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black.withValues(alpha: 0.5),
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
-        title: Text(
-          title,
-          style: const TextStyle(color: Colors.white),
-        ),
-      ),
-      body: PhotoView(
-        backgroundDecoration: const BoxDecoration(color: Colors.black),
-        minScale: PhotoViewComputedScale.contained,
-        maxScale: PhotoViewComputedScale.covered * 2.5,
-        initialScale: PhotoViewComputedScale.contained,
-        imageProvider: _GradientImageProvider(
-          gradient: gradient,
-          icon: icon,
-          title: title,
-          subtitle: subtitle,
-        ),
+      body: Stack(
+        children: [
+          InteractiveViewer(
+            panEnabled: true,
+            minScale: 0.5,
+            maxScale: 4.0,
+            child: Center(
+              child: _buildGradientCard(gradient, icon, title, subtitle),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                        color: Colors.black54,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close,
+                          color: Colors.white, size: 24),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
-}
 
-/// 自定义 ImageProvider，将渐变卡片渲染为可查看的图片
-class _GradientImageProvider extends ImageProvider<_GradientImageProvider> {
-  final List<Color> gradient;
-  final IconData icon;
-  final String title;
-  final String subtitle;
-
-  const _GradientImageProvider({
-    required this.gradient,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-  });
-
-  @override
-  Future<_GradientImageProvider> obtainKey(ImageConfiguration configuration) {
-    return SynchronousFuture<_GradientImageProvider>(this);
-  }
-
-  @override
-  ImageStreamCompleter loadImage(
-    _GradientImageProvider key,
-    ImageDecoderCallback decode,
-  ) {
-    final stream = ImageStreamController();
-    _loadImage(stream, decode);
-    return stream;
-  }
-
-  Future<void> _loadImage(
-    ImageStreamController stream,
-    ImageDecoderCallback decode,
-  ) async {
-    try {
-      final recorder = PictureRecorder();
-      final canvas = Canvas(recorder);
-      const size = Size(800, 1200);
-
-      // 绘制渐变背景
-      final paint = Paint()
-        ..shader = LinearGradient(
+  Widget _buildGradientCard(
+      List<Color> gradient, IconData icon, String title, String subtitle) {
+    return Container(
+      width: 320,
+      height: 480,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
           colors: gradient,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
-
-      // 绘制图标
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: String.fromCharCode(icon.codePoint),
-          style: TextStyle(
-            fontSize: 180,
-            fontFamily: icon.fontFamily,
-            color: Colors.white.withValues(alpha: 0.3),
+        ),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: Colors.white.withValues(alpha: 0.3), size: 120),
+          const SizedBox(height: 32),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset(
-          (size.width - textPainter.width) / 2,
-          size.height * 0.25,
-        ),
-      );
-
-      // 绘制标题
-      final titlePainter = TextPainter(
-        text: TextSpan(
-          text: title,
-          style: const TextStyle(
-            fontSize: 56,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
+            ),
           ),
-        ),
-        textDirection: TextDirection.ltr,
-        textAlign: TextAlign.center,
-      );
-      titlePainter.layout(maxWidth: size.width - 80);
-      titlePainter.paint(
-        canvas,
-        Offset(
-          (size.width - titlePainter.width) / 2,
-          size.height * 0.55,
-        ),
-      );
-
-      // 绘制副标题
-      final subtitlePainter = TextPainter(
-        text: TextSpan(
-          text: subtitle,
-          style: TextStyle(
-            fontSize: 32,
-            color: Colors.white.withValues(alpha: 0.85),
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-        textAlign: TextAlign.center,
-      );
-      subtitlePainter.layout(maxWidth: size.width - 80);
-      subtitlePainter.paint(
-        canvas,
-        Offset(
-          (size.width - subtitlePainter.width) / 2,
-          size.height * 0.55 + titlePainter.height + 20,
-        ),
-      );
-
-      final picture = recorder.endRecording();
-      final image = await picture.toImage(size.width.toInt(), size.height.toInt());
-      final byteData = await image.toByteData(format: ImageByteFormat.png);
-      final bytes = byteData!.buffer.asUint8List();
-
-      final codec = await decode(await ImmutableBuffer.fromUint8List(bytes));
-      final frame = await codec.getNextFrame();
-      stream.setImage(frame.image);
-    } catch (e) {
-      stream.setError(e, StackTrace.current);
-    }
+        ],
+      ),
+    );
   }
-
-  @override
-  bool operator ==(Object other) {
-    if (other.runtimeType != runtimeType) return false;
-    return other is _GradientImageProvider &&
-        other.gradient == gradient &&
-        other.icon == icon &&
-        other.title == title &&
-        other.subtitle == subtitle;
-  }
-
-  @override
-  int get hashCode => Object.hash(gradient, icon, title, subtitle);
 }

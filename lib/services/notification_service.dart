@@ -81,7 +81,8 @@ class NotificationService {
     final iosImpl = _plugin.resolvePlatformSpecificImplementation<
         IOSFlutterLocalNotificationsPlugin>();
     if (iosImpl != null) {
-      return await iosImpl.checkPermissions();
+      final result = await iosImpl.checkPermissions();
+      return result?.isEnabled ?? false;
     }
     return true;
   }
