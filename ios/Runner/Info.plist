@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>需要发送每日情绪记录提醒</string>
+	<key>NSRemoteNotificationUsageDescription</key>
+	<string>需要发送每日情绪记录提醒</string>
 </dict>
 </plist>

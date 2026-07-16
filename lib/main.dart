@@ -89,6 +89,7 @@ class _AppEntranceState extends State<_AppEntrance>
       await _preferences.init();
       await _notifications.init();
       await _notifications.requestPermissions();
+      await _notifications.requestExactAlarmPermission();
       if (_preferences.dailyReminderEnabled && _preferences.dailyReminderTimes.isNotEmpty) {
         await _notifications.scheduleDailyReminder(_preferences.dailyReminderTimes);
       }

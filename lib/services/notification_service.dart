@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter/material.dart';
 import 'preferences_service.dart';
 
 class NotificationService {
@@ -23,6 +24,7 @@ class NotificationService {
   Future<void> init() async {
     if (_initialized) return;
     tz_data.initializeTimeZones();
+    tz.setLocalLocation(tz.getLocation('Asia/Shanghai'));
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
@@ -55,6 +57,14 @@ class NotificationService {
       return granted ?? false;
     }
     return true;
+  }
+
+  Future<void> requestExactAlarmPermission() async {
+    final androidImpl = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidImpl != null) {
+      await androidImpl.requestExactAlarmsPermission();
+    }
   }
 
   AndroidNotificationDetails _androidDetails({
@@ -104,6 +114,7 @@ class NotificationService {
   Future<void> scheduleDailyReminder(List<String> times) async {
     if (!_initialized) await init();
     await requestPermissions();
+    await requestExactAlarmPermission();
     await cancelDailyReminders();
 
     final prefs = PreferencesService();
@@ -139,7 +150,7 @@ class NotificationService {
         '花一分钟，写下今天的情绪吧',
         scheduled,
         details,
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
@@ -164,6 +175,7 @@ class NotificationService {
   }) async {
     if (!_initialized) await init();
     await requestPermissions();
+    await requestExactAlarmPermission();
 
     final now = tz.TZDateTime.now(tz.local);
     var scheduled = tz.TZDateTime(
@@ -191,7 +203,7 @@ class NotificationService {
       '剂量：$dosage · 记得按时服药哦',
       scheduled,
       details,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
