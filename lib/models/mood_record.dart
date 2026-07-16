@@ -9,6 +9,7 @@ class MoodRecord {
   final String? note; // 短文字备注
   final List<String> tags; // 触发标签
   final String? diary; // 长文本日记（v2 新增）
+  final List<String> diaryImages; // 日记关联图片路径列表（v7 新增）
   final DateTime createdAt; // 创建时间
 
   MoodRecord({
@@ -18,6 +19,7 @@ class MoodRecord {
     this.note,
     required this.tags,
     this.diary,
+    this.diaryImages = const [],
     required this.createdAt,
   });
 
@@ -25,15 +27,21 @@ class MoodRecord {
   factory MoodRecord.fromMap(Map<String, dynamic> map) {
     return MoodRecord(
       id: map['id'] as int?,
-      moodType: MoodTypeExtension.fromIndex(map['mood_type'] as int),
-      intensity: map['intensity'] as int,
+      moodType: MoodTypeExtension.fromIndex(map['mood_type'] as int? ?? 0),
+      intensity: map['intensity'] as int? ?? 3,
       note: map['note'] as String?,
       tags:
           (map['tags'] as String?) != null && (map['tags'] as String).isNotEmpty
               ? (map['tags'] as String).split(',')
               : [],
       diary: map['diary'] as String?,
-      createdAt: DateTime.fromMillisecondsSinceEpoch(map['created_at'] as int),
+      diaryImages: (map['diary_images'] as String?) != null &&
+              (map['diary_images'] as String).isNotEmpty
+          ? (map['diary_images'] as String).split('|')
+          : [],
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        map['created_at'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+      ),
     );
   }
 
@@ -46,6 +54,7 @@ class MoodRecord {
       'note': note,
       'tags': tags.join(','),
       'diary': diary,
+      'diary_images': diaryImages.isEmpty ? null : diaryImages.join('|'),
       'created_at': createdAt.millisecondsSinceEpoch,
     };
   }
@@ -58,6 +67,7 @@ class MoodRecord {
     String? note,
     List<String>? tags,
     String? diary,
+    List<String>? diaryImages,
     DateTime? createdAt,
   }) {
     return MoodRecord(
@@ -67,6 +77,7 @@ class MoodRecord {
       note: note ?? this.note,
       tags: tags ?? this.tags,
       diary: diary ?? this.diary,
+      diaryImages: diaryImages ?? this.diaryImages,
       createdAt: createdAt ?? this.createdAt,
     );
   }

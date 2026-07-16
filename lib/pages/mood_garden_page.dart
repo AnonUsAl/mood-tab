@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -69,7 +70,10 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
   double _eraserSize = 12.0;
   List<Stroke> _strokes = [];
   List<Stroke> _redoneStrokes = [];
-  List<Offset> _currentPoints = [];
+  // 当前正在绘制的笔迹用 ValueNotifier 承载：指针移动只让涂鸦层
+  // CustomPaint 重绘，不触发整页 setState（避免 Consumer/工具栏/列表重建）。
+  final ValueNotifier<List<Offset>> _currentPoints = ValueNotifier([]);
+  Timer? _saveDebounce;
   final GlobalKey _canvasKey = GlobalKey();
 
   @override
@@ -86,25 +90,26 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
   @override
   void dispose() {
     _providerRef?.removeListener(_onProviderChanged);
+    // 若有未落盘的防抖保存，离开前立即冲刷，避免丢失最后一笔
+    if (_saveDebounce?.isActive ?? false) {
+      _flushSaveDoodles();
+    }
+    _currentPoints.dispose();
     super.dispose();
   }
 
   void _startDrawing(Offset point) {
-    setState(() {
-      _currentPoints = [point];
-      _redoneStrokes = [];
-    });
+    // 新一笔开始：清空重做栈（需要刷新撤销/重做按钮状态）
+    if (_redoneStrokes.isNotEmpty) {
+      setState(() => _redoneStrokes = []);
+    }
+    _currentPoints.value = [point];
   }
 
   void _draw(Offset point) {
-    setState(() {
-      if (_currentPoints.isEmpty) {
-        _currentPoints = [point];
-      } else {
-        // 关键：创建新列表，而非原地 .add()，确保 shouldRepaint 检测到长度变化
-        _currentPoints = [..._currentPoints, point];
-      }
-    });
+    // 仅更新 notifier，涂鸦层 CustomPaint 通过 repaint 监听独立重绘，
+    // 不重建整页。新建列表以触发 ValueNotifier 的引用变化通知。
+    _currentPoints.value = [..._currentPoints.value, point];
   }
 
   void _endDrawing() {
@@ -112,18 +117,26 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
   }
 
   /// 提交当前正在画的笔迹（用于颜色/粗细切换时分段，保持旧色不变）
+  ///
+  /// 注意：每次都重新赋值为新 list，而非原地 add/removeLast。因为画笔的
+  /// shouldRepaint 依赖新旧 list 的引用差异来判断是否重绘，原地修改会让
+  /// 新旧 delegate 指向同一 list，导致撤销/重做不刷新。
   void _commitCurrentStroke() {
-    if (_currentPoints.isNotEmpty) {
+    final points = _currentPoints.value;
+    if (points.isNotEmpty) {
       setState(() {
-        _strokes.add(Stroke(
-          points: List.from(_currentPoints),
-          color: _brushColor,
-          size: _activeSize,
-          brushType: _brushType,
-        ));
-        _currentPoints = [];
+        _strokes = [
+          ..._strokes,
+          Stroke(
+            points: List.from(points),
+            color: _brushColor,
+            size: _activeSize,
+            brushType: _brushType,
+          ),
+        ];
         _redoneStrokes = [];
       });
+      _currentPoints.value = [];
       _saveDoodles();
     }
   }
@@ -132,15 +145,16 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
     setState(() {
       _strokes = [];
       _redoneStrokes = [];
-      _currentPoints = [];
     });
+    _currentPoints.value = [];
     _saveDoodles();
   }
 
   void _undoDrawing() {
     if (_strokes.isNotEmpty) {
       setState(() {
-        _redoneStrokes.add(_strokes.removeLast());
+        _redoneStrokes = [..._redoneStrokes, _strokes.last];
+        _strokes = _strokes.sublist(0, _strokes.length - 1);
       });
       _saveDoodles();
     }
@@ -149,7 +163,8 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
   void _redoDrawing() {
     if (_redoneStrokes.isNotEmpty) {
       setState(() {
-        _strokes.add(_redoneStrokes.removeLast());
+        _strokes = [..._strokes, _redoneStrokes.last];
+        _redoneStrokes = _redoneStrokes.sublist(0, _redoneStrokes.length - 1);
       });
       _saveDoodles();
     }
@@ -185,7 +200,16 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
     } catch (_) {}
   }
 
+  /// 保存涂鸦。防抖 400ms，避免连续操作时频繁 jsonEncode 阻塞主线程。
   void _saveDoodles() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 400), _flushSaveDoodles);
+  }
+
+  /// 立即持久化涂鸦（用于离开页面时冲刷未落盘的防抖保存）。
+  void _flushSaveDoodles() {
+    _saveDebounce?.cancel();
+    _saveDebounce = null;
     final json = jsonEncode(_strokes.map((s) => s.toJson()).toList());
     PreferencesService().setGardenDoodles(json);
   }
@@ -375,6 +399,7 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
             currentSize: _activeSize,
             currentBrushType: _brushType,
           ),
+          // 提交后的笔迹层：仅在 strokes/画笔属性变化（setState）时重建
         ),
       ),
     );
@@ -626,7 +651,7 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
 
 class _DrawingPainter extends CustomPainter {
   final List<Stroke> strokes;
-  final List<Offset> currentPoints;
+  final ValueNotifier<List<Offset>> currentPoints;
   final Color currentColor;
   final double currentSize;
   final BrushType currentBrushType;
@@ -637,25 +662,34 @@ class _DrawingPainter extends CustomPainter {
     required this.currentColor,
     required this.currentSize,
     required this.currentBrushType,
-  });
+  }) : super(repaint: currentPoints);
 
   @override
   void paint(Canvas canvas, Size size) {
-    // 涂鸦层由 RepaintBoundary 隔离为独立 retained 图层；橡皮擦的
-    // BlendMode.clear 只清除本层像素，露出下方同样独立的花园图层，
-    // 因此保留下层颜色且不会因 saveLayer 在某些设备上产生坐标偏移。
+    // 关键：把所有笔迹画进一个独立的离屏图层（saveLayer）。橡皮擦用
+    // BlendMode.clear 只清除本图层内已画的笔迹像素，clear 后的区域变透明，
+    // 露出下方独立的花园图层——因此橡皮只擦涂鸦、不会擦掉背景。
+    // 若不 saveLayer，clear 会作用到底层画布、把花园背景一起清掉。
+    //
+    // 正在画的笔迹通过 repaint: currentPoints 监听独立重绘，指针移动时
+    // 只重绘本层，无需 setState 重建整页。
+    canvas.saveLayer(Offset.zero & size, Paint());
+
     for (final stroke in strokes) {
       _drawStroke(canvas, stroke);
     }
 
-    if (currentPoints.isNotEmpty) {
+    final live = currentPoints.value;
+    if (live.isNotEmpty) {
       _drawStroke(canvas, Stroke(
-        points: currentPoints,
+        points: live,
         color: currentColor,
         size: currentSize,
         brushType: currentBrushType,
       ));
     }
+
+    canvas.restore();
   }
 
   void _drawStroke(Canvas canvas, Stroke stroke) {
@@ -666,8 +700,8 @@ class _DrawingPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     if (stroke.brushType == BrushType.eraser) {
-      // 真正的橡皮擦：清成透明，露出下层花园（而非平涂一个固定底色）。
-      // 外层 RepaintBoundary 已把涂鸦层隔离，clear 只作用于涂鸦层本身。
+      // 真正的橡皮擦：清成透明。因为所有笔迹都画在 paint() 里的 saveLayer
+      // 离屏图层内，clear 只清除本图层的笔迹像素，restore 合成时露出下层花园。
       paint
         ..color = Colors.transparent
         ..blendMode = BlendMode.clear;
@@ -715,8 +749,10 @@ class _DrawingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DrawingPainter oldDelegate) {
-    return oldDelegate.strokes.length != strokes.length ||
-        !identical(oldDelegate.currentPoints, currentPoints) ||
+    // 正在画的笔迹由 repaint: currentPoints 驱动重绘，无需在此比较。
+    // 这里只处理已提交笔迹与画笔样式的变化。
+    return !identical(oldDelegate.strokes, strokes) ||
+        oldDelegate.strokes.length != strokes.length ||
         oldDelegate.currentColor != currentColor ||
         oldDelegate.currentSize != currentSize ||
         oldDelegate.currentBrushType != currentBrushType;
@@ -778,12 +814,10 @@ class _GardenPainter extends CustomPainter {
 
     for (int dayIdx = 0; dayIdx < totalDays && dayIdx < 8; dayIdx++) {
       final dayRecords = byDay[days[dayIdx]]!;
-      final dayDate = DateTime.parse(days[dayIdx]);
-      final daysSinceRecord = today.difference(DateTime(
-        dayDate.year,
-        dayDate.month,
-        dayDate.day,
-      ));
+      // 直接取记录自带的日期，避免对未补零的日期键做 DateTime.parse（会抛异常）
+      final rawDate = dayRecords.first.createdAt;
+      final dayDate = DateTime(rawDate.year, rawDate.month, rawDate.day);
+      final daysSinceRecord = today.difference(dayDate);
       final isWilting = daysSinceRecord.inDays >= 7;
 
       final yRatio = dayIdx / math.max(totalDays - 1, 7);

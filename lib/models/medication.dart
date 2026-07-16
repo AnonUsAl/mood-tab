@@ -28,9 +28,14 @@ class Medication {
     this.enabled = true,
   });
 
-  /// 生成通知 ID：每个时间点一个独立通知 ID
-  /// 格式：medicationId * 10 + timeIndex（最多支持 10 个时间点）
-  int notificationIdFor(int timeIndex) => id * 10 + timeIndex;
+  /// 生成通知 ID：基于药物在列表中的索引，避免 id 过大溢出 Android 32-bit int
+  /// 格式：200 + medIndex * 10 + timeIndex
+  /// 支持最多 80 种药物 × 10 个时间点（ID 范围 200~999）
+  static const int _medIdBase = 200;
+  static const int _maxMedications = 80;
+
+  int notificationIdFor(int medIndex, int timeIndex) =>
+      _medIdBase + medIndex * 10 + timeIndex;
 
   /// 最大时间点数
   static const int maxTimes = 10;

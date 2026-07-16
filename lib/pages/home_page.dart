@@ -11,6 +11,8 @@ import 'diary_page.dart';
 import 'history_page.dart';
 import 'breathing_exercise_page.dart';
 import 'mood_garden_page.dart';
+import 'urge_log_page.dart';
+import 'conflict_care_page.dart';
 
 /// 首页 - 今日情绪概览
 class HomePage extends StatefulWidget {
@@ -21,14 +23,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  @override
-  void initState() {
-    super.initState();
-    // 首次进入加载数据
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<MoodProvider>().loadAllData();
-    });
-  }
+  // 数据由启动流程（main.dart 的 _AppEntrance）统一加载，
+  // 首页不再重复触发 loadAllData，避免启动时的双重加载。
 
   @override
   Widget build(BuildContext context) {
@@ -336,7 +332,7 @@ class _HomePageState extends State<HomePage> {
               children: [
                 _buildWeatherStat('周趋势', trendText),
                 const SizedBox(width: 16),
-                _buildWeatherStat('情绪降雨', '${rainProb}%'),
+                _buildWeatherStat('情绪降雨', '$rainProb%'),
                 const SizedBox(width: 16),
                 _buildWeatherStat('本周记录', '${weekRecords.length}条'),
               ],
@@ -576,6 +572,19 @@ class _HomePageState extends State<HomePage> {
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const HistoryPage()),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _buildActionCard(
+              icon: Icons.shield_outlined,
+              label: '冲突关怀',
+              color: const Color(0xFFE57373),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ConflictCarePage()),
                 );
               },
             ),

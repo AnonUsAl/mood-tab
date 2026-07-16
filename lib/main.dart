@@ -97,14 +97,18 @@ class _AppEntranceState extends State<_AppEntrance>
     try {
       await _preferences.init();
       await _notifications.init();
-      await _notifications.requestPermissions();
+      // 先检查通知权限是否已授予，未授予才申请
+      await _notifications.ensurePermissions();
     } catch (e) {
       debugPrint('Initialization error: $e');
     }
 
-    // 单独请求精确闹钟权限，避免抛异常中断后续通知调度
+    // 检查精确闹钟权限，未授予才申请
     try {
-      await _notifications.requestExactAlarmPermission();
+      final hasExactAlarm = await _notifications.canScheduleExactAlarms();
+      if (!hasExactAlarm) {
+        await _notifications.requestExactAlarmPermission();
+      }
     } catch (e) {
       debugPrint('Request exact alarm permission error: $e');
     }

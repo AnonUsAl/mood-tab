@@ -332,8 +332,8 @@ class _MedicationEditSheetState extends State<_MedicationEditSheet> {
       _times = med.times.map((t) {
         final parts = t.split(':');
         return TimeOfDay(
-          hour: int.parse(parts[0]),
-          minute: int.parse(parts[1]),
+          hour: int.tryParse(parts[0]) ?? 0,
+          minute: int.tryParse(parts[1]) ?? 0,
         );
       }).toList();
     }

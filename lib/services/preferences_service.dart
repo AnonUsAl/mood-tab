@@ -33,6 +33,7 @@ class PreferencesService {
   static const _keyEraserSize = 'eraser_size';
   static const _keyDailyReminderStyle = 'daily_reminder_style';
   static const _keyMedicationReminderStyle = 'medication_reminder_style';
+  static const _keyTimeZone = 'user_time_zone';
 
   /// 初始化，应在 app 启动时调用
   Future<void> init() async {
@@ -242,6 +243,15 @@ class PreferencesService {
 
   Future<void> setMedicationReminderStyle(String value) =>
       _prefsInstance.setString(_keyMedicationReminderStyle, value);
+
+  // ==================== 时区设置 ====================
+
+  /// 用户选择的时区，默认 'Asia/Shanghai'
+  String get timeZone =>
+      _prefsInstance.getString(_keyTimeZone) ?? 'Asia/Shanghai';
+
+  Future<void> setTimeZone(String value) =>
+      _prefsInstance.setString(_keyTimeZone, value);
 
   // ==================== 工具方法 ====================
 

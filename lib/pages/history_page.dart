@@ -171,6 +171,15 @@ class _HistoryPageState extends State<HistoryPage> {
           child: const Icon(Icons.delete_outline, color: Colors.white),
         ),
         confirmDismiss: (direction) => _confirmDelete(context, record),
+        onDismissed: (direction) {
+          context.read<MoodProvider>().deleteRecord(record.id!);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('记录已删除'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        },
         child: GestureDetector(
           onTap: () => _showDetailSheet(context, record),
           child: Container(

@@ -70,6 +70,32 @@ class NotificationService {
     _updateLocalTimeZone();
   }
 
+  /// 检查通知权限是否已授予（不弹出系统对话框）
+  Future<bool> areNotificationsEnabled() async {
+    if (!_initialized) await init();
+    final androidImpl = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    if (androidImpl != null) {
+      return await androidImpl.areNotificationsEnabled() ?? false;
+    }
+    final iosImpl = _plugin.resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin>();
+    if (iosImpl != null) {
+      return await iosImpl.checkPermissions();
+    }
+    return true;
+  }
+
+  /// 检查通知权限，未授予则申请
+  /// 返回 true 表示当前已拥有通知权限
+  Future<bool> ensurePermissions() async {
+    if (!_initialized) await init();
+    final hasPermission = await areNotificationsEnabled();
+    if (hasPermission) return true;
+    // 未授予，弹出系统权限申请对话框
+    return requestPermissions();
+  }
+
   Future<bool> requestPermissions() async {
     if (!_initialized) await init();
     final androidImpl = _plugin.resolvePlatformSpecificImplementation<

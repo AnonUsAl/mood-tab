@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../models/medication.dart';
 import '../models/mood_record.dart';
 import '../models/mood_tag.dart';
 import '../models/mood_type.dart';
+import '../models/urge_log.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../services/preferences_service.dart';
@@ -33,6 +35,9 @@ class MoodProvider extends ChangeNotifier {
   int _checkinStreak = 0;
   int _totalCheckins = 0;
 
+  /// 自伤冲动监测日志
+  List<UrgeLog> _urgeLogs = [];
+
   List<MoodRecord> get allRecords => _allRecords;
   List<MoodRecord> get todayRecords => _todayRecords;
   List<MoodRecord> get diaryRecords => _diaryRecords;
@@ -44,6 +49,8 @@ class MoodProvider extends ChangeNotifier {
   bool get hasCheckedInToday => _hasCheckedInToday;
   int get checkinStreak => _checkinStreak;
   int get totalCheckins => _totalCheckins;
+  List<UrgeLog> get urgeLogs => _urgeLogs;
+  int get urgeLogCount => _urgeLogs.length;
 
   /// 今日记录条数
   int get todayCount => _todayRecords.length;
@@ -61,24 +68,100 @@ class MoodProvider extends ChangeNotifier {
   List<MoodTag> get allTags => MoodTags.allTags;
 
   /// 加载所有数据
+  ///
+  /// 注意：不在此处调度通知。每日提醒的调度由启动流程（main.dart）
+  /// 和设置页负责，避免下拉刷新或写入记录时产生多余的通知重排。
   Future<void> loadAllData() async {
     _setLoading(true);
-    await _prefs.init();
-    _themeMode = _prefs.themeMode;
-    _userName = _prefs.userName;
-    _medications = _prefs.getMedications();
-    final customTags = _prefs.getCustomTags();
-    MoodTags.setCustomTags(customTags);
+    try {
+      await _prefs.init();
+      _themeMode = _prefs.themeMode;
+      _userName = _prefs.userName;
+      _medications = _prefs.getMedications();
+      MoodTags.setCustomTags(_prefs.getCustomTags());
+      await _reloadRecords();
+      await _reloadCheckinState();
+      await _reloadUrgeLogs();
+    } catch (e) {
+      debugPrint('loadAllData error: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// 重新加载情绪记录。
+  /// 今日记录与日记记录直接从全部记录派生，避免额外的数据库查询。
+  Future<void> _reloadRecords() async {
     _allRecords = await _dbService.getAllRecords();
-    _todayRecords = await _dbService.getTodayRecords();
-    _diaryRecords = await _dbService.getDiaryRecords();
+    _recomputeDerivedRecords();
+  }
+
+  /// 从 [_allRecords] 派生今日记录与日记记录（内存计算，无数据库查询）。
+  void _recomputeDerivedRecords() {
+    final now = DateTime.now();
+    final todayStart =
+        DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+    final todayEnd = todayStart + const Duration(days: 1).inMilliseconds;
+    _todayRecords = _allRecords.where((r) {
+      final ts = r.createdAt.millisecondsSinceEpoch;
+      return ts >= todayStart && ts < todayEnd;
+    }).toList();
+    _diaryRecords = _allRecords
+        .where((r) => r.diary != null && r.diary!.isNotEmpty)
+        .toList();
+  }
+
+  /// 重新加载打卡状态（打卡数据存于独立的 checkins 表）。
+  Future<void> _reloadCheckinState() async {
     _hasCheckedInToday = await _dbService.hasCheckedInToday();
     _checkinStreak = await _dbService.getCheckinStreak();
     _totalCheckins = await _dbService.getTotalCheckins();
-    if (_prefs.dailyReminderEnabled) {
-      await _notifications.scheduleDailyReminder(_prefs.dailyReminderTimes);
+  }
+
+  /// 重新加载自伤冲动监测日志。
+  Future<void> _reloadUrgeLogs() async {
+    _urgeLogs = await _dbService.getUrgeLogs();
+  }
+
+  /// 添加一条冲动监测日志（自我觉察工具）。
+  Future<void> addUrgeLog({
+    String? title,
+    required int intensity,
+    required bool actedOn,
+    String? trigger,
+    String? copingUsed,
+    String? note,
+    String? imagePath,
+    DateTime? createdAt,
+  }) async {
+    final log = UrgeLog(
+      title: title,
+      intensity: intensity,
+      actedOn: actedOn,
+      trigger: trigger,
+      copingUsed: copingUsed,
+      note: note,
+      imagePath: imagePath,
+      createdAt: createdAt ?? DateTime.now(),
+    );
+    await _dbService.insertUrgeLog(log);
+    await _reloadUrgeLogs();
+    notifyListeners();
+  }
+
+  /// 删除一条冲动监测日志。同时清理其关联的本地图片文件。
+  Future<void> deleteUrgeLog(int id) async {
+    final target = _urgeLogs.where((l) => l.id == id).toList();
+    final imagePath = target.isNotEmpty ? target.first.imagePath : null;
+    await _dbService.deleteUrgeLog(id);
+    if (imagePath != null && imagePath.isNotEmpty) {
+      try {
+        final file = File(imagePath);
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
     }
-    _setLoading(false);
+    await _reloadUrgeLogs();
+    notifyListeners();
   }
 
   /// 今日打卡
@@ -143,6 +226,7 @@ class MoodProvider extends ChangeNotifier {
     required int intensity,
     String? note,
     String? diary,
+    List<String>? diaryImages,
     required List<String> tags,
     DateTime? createdAt,
   }) async {
@@ -151,23 +235,27 @@ class MoodProvider extends ChangeNotifier {
       intensity: intensity,
       note: note,
       diary: diary,
+      diaryImages: diaryImages ?? const [],
       tags: tags,
       createdAt: createdAt ?? DateTime.now(),
     );
     await _dbService.insertRecord(record);
-    await loadAllData();
+    await _reloadRecords();
+    notifyListeners();
   }
 
   /// 更新一条已有记录
   Future<void> updateRecord(MoodRecord record) async {
     await _dbService.updateRecord(record);
-    await loadAllData();
+    await _reloadRecords();
+    notifyListeners();
   }
 
   /// 删除一条记录
   Future<void> deleteRecord(int id) async {
     await _dbService.deleteRecord(id);
-    await loadAllData();
+    await _reloadRecords();
+    notifyListeners();
   }
 
   /// 获取指定日期范围内的记录
@@ -219,15 +307,9 @@ class MoodProvider extends ChangeNotifier {
   Future<void> rescheduleMedicationReminders() async {
     await _notifications.cancelAllMedicationReminders();
 
-    // 重新设置每日情绪提醒（因为 cancelAll 会清除它）
-    if (_prefs.dailyReminderEnabled) {
-      await _notifications.scheduleDailyReminder(
-        _prefs.dailyReminderTimes,
-      );
-    }
-
     // 为每个启用的药物设置提醒
-    for (final med in _medications) {
+    for (int medIndex = 0; medIndex < _medications.length; medIndex++) {
+      final med = _medications[medIndex];
       if (!med.enabled) continue;
       for (int i = 0; i < med.times.length && i < Medication.maxTimes; i++) {
         final parts = med.times[i].split(':');
@@ -237,7 +319,7 @@ class MoodProvider extends ChangeNotifier {
         if (hour == null || minute == null) continue;
 
         await _notifications.scheduleMedicationReminder(
-          notificationId: med.notificationIdFor(i),
+          notificationId: med.notificationIdFor(medIndex, i),
           name: med.name,
           dosage: med.dosage,
           hour: hour,
@@ -275,7 +357,8 @@ class MoodProvider extends ChangeNotifier {
     await _prefs.setMedications(_medications);
     notifyListeners();
     try {
-      await _notifications.cancelMedicationReminder(id);
+      // 重新调度全部药物提醒，因为索引变化后通知 ID 也变了
+      await rescheduleMedicationReminders();
     } catch (_) {}
   }
 

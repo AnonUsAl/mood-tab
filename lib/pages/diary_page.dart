@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/mood_record.dart';
@@ -212,6 +213,13 @@ class _DiaryPageState extends State<DiaryPage> {
                   overflow:
                       isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
                 ),
+                // 日记图片
+                if (record.diaryImages.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  isExpanded
+                      ? _buildExpandedImages(record.diaryImages)
+                      : _buildCollapsedImages(record.diaryImages),
+                ],
               ],
             ),
           ),
@@ -237,6 +245,65 @@ class _DiaryPageState extends State<DiaryPage> {
     final hour = dt.hour.toString().padLeft(2, '0');
     final minute = dt.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  /// 收起状态：最多显示 3 张缩略图
+  Widget _buildCollapsedImages(List<String> images) {
+    final display = images.take(3).toList();
+    final extra = images.length - 3;
+    return Row(
+      children: [
+        ...display.map((path) => _buildThumb(path, size: 64)),
+        if (extra > 0)
+          Container(
+            width: 64,
+            height: 64,
+            margin: const EdgeInsets.only(left: 8),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                '+$extra',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 展开状态：显示所有图片
+  Widget _buildExpandedImages(List<String> images) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: images.map((path) => _buildThumb(path, size: 100)).toList(),
+    );
+  }
+
+  Widget _buildThumb(String path, {double size = 80}) {
+    return Container(
+      width: size,
+      height: size,
+      margin: const EdgeInsets.only(right: 8),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.file(
+          File(path),
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => Container(
+            color: Colors.grey.shade200,
+            child: const Icon(Icons.broken_image_outlined,
+                color: Colors.grey, size: 24),
+          ),
+        ),
+      ),
+    );
   }
 
   void _editRecord(MoodRecord record) {

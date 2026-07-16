@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 防止 R8 编译器在 release 构建中裁剪通知图标等 drawable 资源 -->
+<!-- 不保留这些资源会导致通知在 release 包中静默失败 -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_notification,@mipmap/ic_launcher" />

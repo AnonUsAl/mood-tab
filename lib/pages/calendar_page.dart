@@ -71,7 +71,7 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
-  void _loadSelectedDay(DateTime date) async {
+  void _loadSelectedDay(DateTime date) {
     final key = '${date.year}-${date.month}-${date.day}';
     setState(() {
       _selectedDate = date;

@@ -1,4 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../models/mood_record.dart';
 import '../models/mood_tag.dart';
@@ -27,6 +31,8 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
   final Set<String> _selectedTags = {};
   final TextEditingController _noteController = TextEditingController();
   final TextEditingController _diaryController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
+  List<String> _diaryImages = [];
   bool _isSaving = false;
   bool _showDiary = false;
 
@@ -49,7 +55,8 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
       _selectedTags.addAll(_editingRecord!.tags);
       _noteController.text = _editingRecord!.note ?? '';
       _diaryController.text = _editingRecord!.diary ?? '';
-      if (_diaryController.text.isNotEmpty) {
+      _diaryImages = List.from(_editingRecord!.diaryImages);
+      if (_diaryController.text.isNotEmpty || _diaryImages.isNotEmpty) {
         _showDiary = true;
       }
     }
@@ -417,9 +424,140 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
               hintText: '今天发生了什么？想深入写写的话，在这里记录你的故事和思考...',
             ),
           ),
+          const SizedBox(height: 12),
+          // 图片选择按钮
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickImage,
+                  icon: const Icon(Icons.photo_outlined, size: 18),
+                  label: const Text('从相册选择'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    side: BorderSide(color: AppTheme.dividerOf(context)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _takePhoto,
+                  icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                  label: const Text('拍照'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    side: BorderSide(color: AppTheme.dividerOf(context)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          // 已选图片预览
+          if (_diaryImages.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _diaryImages.asMap().entries.map((entry) {
+                final index = entry.key;
+                final path = entry.value;
+                return _buildImagePreview(path, index);
+              }).toList(),
+            ),
+          ],
         ],
       ],
     );
+  }
+
+  Widget _buildImagePreview(String path, int index) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.file(
+            File(path),
+            width: 80,
+            height: 80,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              width: 80,
+              height: 80,
+              color: Colors.grey.shade200,
+              child: const Icon(Icons.broken_image_outlined,
+                  color: Colors.grey, size: 28),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 0,
+          right: 0,
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                _diaryImages.removeAt(index);
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                color: Colors.black54,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.close, color: Colors.white, size: 14),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<String?> _saveImageToAppDir(File imageFile) async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final fileName =
+          'diary_${DateTime.now().millisecondsSinceEpoch}_${_diaryImages.length}.jpg';
+      final destPath = p.join(appDir.path, fileName);
+      final bytes = await imageFile.readAsBytes();
+      await File(destPath).writeAsBytes(bytes);
+      return destPath;
+    } catch (e) {
+      debugPrint('保存图片失败: $e');
+      return null;
+    }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final result = await _imagePicker.pickImage(source: ImageSource.gallery);
+      if (result != null) {
+        final savedPath = await _saveImageToAppDir(File(result.path));
+        if (savedPath != null) {
+          setState(() => _diaryImages.add(savedPath));
+        }
+      }
+    } catch (e) {
+      debugPrint('选择图片失败: $e');
+    }
+  }
+
+  Future<void> _takePhoto() async {
+    try {
+      final result = await _imagePicker.pickImage(source: ImageSource.camera);
+      if (result != null) {
+        final savedPath = await _saveImageToAppDir(File(result.path));
+        if (savedPath != null) {
+          setState(() => _diaryImages.add(savedPath));
+        }
+      }
+    } catch (e) {
+      debugPrint('拍照失败: $e');
+    }
   }
 
   /// 检测是否需要危机支持
@@ -464,6 +602,7 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
         intensity: _intensity,
         note: note.isEmpty ? null : note,
         diary: diary.isEmpty ? null : diary,
+        diaryImages: _diaryImages,
         tags: _selectedTags.toList(),
       );
       await context.read<MoodProvider>().updateRecord(updated);
@@ -474,6 +613,7 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
             intensity: _intensity,
             note: note.isEmpty ? null : note,
             diary: diary.isEmpty ? null : diary,
+            diaryImages: _diaryImages,
             tags: _selectedTags.toList(),
             createdAt: _backfillDate,
           );

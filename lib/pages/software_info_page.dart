@@ -146,6 +146,30 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v2.7.14',
+        date: '2025-07',
+        changes: [
+          '🔧 修复药物提醒不触发 — 通知 ID 溢出 Android 32-bit 整数上限',
+          '🔧 修复取消药物提醒误删每日情绪提醒',
+          '🔧 修复删除药物后剩余药物提醒失效',
+          '🔧 修复通知/闹钟模式调度策略相同的问题',
+          '🔧 修复更改时区后药物提醒不重新调度',
+          '🖼️ 冲突关怀记录图片支持点击全屏查看 — 双指缩放、滑动浏览',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
+        version: 'v2.7.0',
+        date: '2025-07',
+        changes: [
+          '🐛 修复情绪花园相关 bug',
+          '🤝 新增冲突关怀功能 — 支持长按记录修改',
+          '📷 日记支持添加图片 — 多张照片、拍照、编辑回显',
+          '🌍 新增时区设置 — 20 个常用时区可选，通知按所选时区调度',
+          '🔔 安卓提醒/闹钟全面修复 — 精确闹钟权限、全屏亮屏、release 图标裁剪',
+        ],
+      ),
+      _ChangelogEntry(
         version: 'v2.6.0',
         date: '2025-07',
         changes: [
@@ -154,7 +178,6 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
           '🔔 消息提醒修复 — Android 13+ 权限适配 + iOS 通知代理注册',
           '🔧 浅色模式涂鸦坐标修复 + 单点点击渲染',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v2.5.0',
