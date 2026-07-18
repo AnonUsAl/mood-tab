@@ -1,11 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import '../theme/app_theme.dart';
 
 /// 冲突关怀模块
-/// 提供情绪冲突时的自我关怀指导图片，支持点击图片全屏查看。
-/// 打开页面时自动检查并申请图片读取权限。
+/// 提供情绪冲突时的自我关怀指导卡片，支持点击全屏查看。
 class ConflictCarePage extends StatefulWidget {
   const ConflictCarePage({super.key});
 
@@ -14,10 +11,7 @@ class ConflictCarePage extends StatefulWidget {
 }
 
 class _ConflictCarePageState extends State<ConflictCarePage> {
-  bool _permissionGranted = false;
-  bool _checkingPermission = true;
-
-  /// 关怀卡片数据源（占位示例，可替换为实际本地图片路径）
+  /// 关怀卡片数据源
   final List<Map<String, dynamic>> _careCards = [
     {
       'title': '深呼吸',
@@ -57,120 +51,6 @@ class _ConflictCarePageState extends State<ConflictCarePage> {
     },
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _checkPermission();
-  }
-
-  /// 检查并申请图片/媒体权限
-  Future<void> _checkPermission() async {
-    setState(() => _checkingPermission = true);
-
-    final status = await _resolvePhotoPermission();
-
-    if (status.isGranted) {
-      setState(() {
-        _permissionGranted = true;
-        _checkingPermission = false;
-      });
-      return;
-    }
-
-    if (status.isPermanentlyDenied) {
-      // 用户已永久拒绝，引导去设置
-      setState(() => _checkingPermission = false);
-      _showGoToSettingsDialog();
-      return;
-    }
-
-    // 请求权限
-    final result = await _resolvePhotoPermission(request: true);
-    setState(() {
-      _permissionGranted = result.isGranted;
-      _checkingPermission = false;
-    });
-
-    if (!result.isGranted) {
-      _showPermissionDeniedDialog();
-    }
-  }
-
-  /// 根据平台返回合适的照片权限
-  Future<PermissionStatus> _resolvePhotoPermission({bool request = false}) async {
-    if (Platform.isAndroid) {
-      // Android 13+ 使用 READ_MEDIA_IMAGES
-      final photos = Permission.photos;
-      if (request) {
-        return await photos.request();
-      }
-      return await photos.status;
-    } else if (Platform.isIOS) {
-      final photos = Permission.photos;
-      if (request) {
-        return await photos.request();
-      }
-      return await photos.status;
-    }
-    return PermissionStatus.granted;
-  }
-
-  /// 权限被拒绝时的提示
-  void _showPermissionDeniedDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('需要图片权限'),
-        content: const Text(
-          '冲突关怀模块需要访问相册权限来加载关怀图片。'
-          '你可以在设置中随时开启。',
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('稍后再说'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              _checkPermission();
-            },
-            child: const Text('重新申请'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 永久拒绝时引导去系统设置
-  void _showGoToSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('权限已被永久拒绝'),
-        content: const Text(
-          '你需要在系统设置中手动开启相册权限，'
-          '冲突关怀模块才能正常加载图片。',
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              openAppSettings();
-            },
-            child: const Text('去设置'),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// 打开图片全屏查看
   void _openImageViewer(Map<String, dynamic> card) {
     Navigator.of(context).push(
@@ -185,18 +65,8 @@ class _ConflictCarePageState extends State<ConflictCarePage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('冲突关怀'),
-        actions: [
-          if (!_permissionGranted && !_checkingPermission)
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _checkPermission,
-              tooltip: '重新检查权限',
-            ),
-        ],
       ),
-      body: _checkingPermission
-          ? const Center(child: CircularProgressIndicator())
-          : _buildBody(),
+      body: _buildBody(),
     );
   }
 
@@ -255,7 +125,7 @@ class _ConflictCarePageState extends State<ConflictCarePage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '点击图片查看关怀指导，'
+                      '点击卡片查看关怀指导，'
                       '不必急着解决问题，先照顾好自己',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppTheme.textSecondaryOf(context),
@@ -266,37 +136,6 @@ class _ConflictCarePageState extends State<ConflictCarePage> {
               ),
             ],
           ),
-          if (!_permissionGranted) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded,
-                      size: 18, color: Colors.orange.shade700),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '图片权限未开启，部分功能可能受限',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.orange.shade800,
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _checkPermission,
-                    child: const Text('开启'),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );

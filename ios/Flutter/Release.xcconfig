@@ -1,2 +1,6 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
+
+CODE_SIGNING_ALLOWED = YES
+CODE_SIGN_IDENTITY = -
+PROVISIONING_PROFILE_REQUIRED = NO

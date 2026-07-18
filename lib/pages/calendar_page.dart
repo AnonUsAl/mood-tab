@@ -324,6 +324,9 @@ class _CalendarPageState extends State<CalendarPage> {
     if (_selectedDayRecords.isEmpty) {
       // 无记录 — 显示补记按钮
       final now = DateTime.now();
+      final isToday = _selectedDate!.year == now.year &&
+          _selectedDate!.month == now.month &&
+          _selectedDate!.day == now.day;
       final isFuture = _selectedDate!.isAfter(DateTime(now.year, now.month, now.day));
 
       return Container(
@@ -344,7 +347,9 @@ class _CalendarPageState extends State<CalendarPage> {
                 onPressed: () async {
                   final result = await Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => MoodRecordPage(initialDate: _selectedDate!),
+                      builder: (_) => MoodRecordPage(
+                        initialDate: isToday ? null : _selectedDate!,
+                      ),
                     ),
                   );
                   if (result == true) {
@@ -352,7 +357,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   }
                 },
                 icon: const Icon(Icons.event_note, size: 16),
-                label: const Text('补记这天的心情'),
+                label: Text(isToday ? '记录今天的心情' : '补记这天的心情'),
                 style: TextButton.styleFrom(
                   foregroundColor: AppTheme.primaryColor,
                   textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),

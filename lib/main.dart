@@ -29,6 +29,7 @@ class MoodTabApp extends StatelessWidget {
           return MaterialApp(
             title: '脑电波',
             debugShowCheckedModeBanner: false,
+            navigatorKey: NotificationService.navigatorKey,
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: provider.themeMode == 'dark'
@@ -198,11 +199,8 @@ class _MainScaffoldState extends State<MainScaffold> {
         },
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-        ),
-        child: const Icon(Icons.add, size: 28),
+        elevation: 3,
+        child: const Icon(Icons.edit_note, size: 28),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(

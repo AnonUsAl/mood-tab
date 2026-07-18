@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../theme/app_theme.dart';
@@ -84,6 +85,12 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
             _buildSectionTitle(context, '开源与链接'),
             const SizedBox(height: 8),
             _buildLinksCard(isDark),
+            const SizedBox(height: 24),
+
+            // 作者与团队
+            _buildSectionTitle(context, '作者与团队'),
+            const SizedBox(height: 8),
+            _buildTeamCard(isDark),
             const SizedBox(height: 32),
 
             // 底部致谢
@@ -146,13 +153,46 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v2.7.26',
+        date: '2025-07',
+        changes: [
+          '🐛 修复了一些 bug',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
+        version: 'v2.7.25',
+        date: '2025-07',
+        changes: [
+          '🐛 修复了一些 bug',
+        ],
+      ),
+      _ChangelogEntry(
+        version: 'v2.7.23',
+        date: '2025-07',
+        changes: [
+          '🐛 修复日历中点击今天显示"补记"而非正常记录 — 今天判定为正常记录入口',
+        ],
+        
+      ),
+      _ChangelogEntry(
+        version: 'v2.7.22',
+        date: '2025-07',
+        changes: [
+          '🐛 修复冲突关怀页面权限申请弹窗不出现 — iOS 缺少 NSPhotoLibraryUsageDescription',
+          '🧹 移除冲突关怀页面多余的相册权限逻辑 — 卡片为硬编码数据无需权限',
+          '🔧 修复 iOS release IPA 构建失败 — xattr 绕过方案',
+        ],
+        
+      ),
+      _ChangelogEntry(
         version: 'v2.7.21',
         date: '2025-07',
         changes: [
           '📧 关于作者页面增加企业邮箱 anonusal@cldery.com',
           '🌐 关于作者页面增加云术工作室官网链接 www.cldery.com',
         ],
-        isLatest: true,
+        
       ),
       _ChangelogEntry(
         version: 'v2.7.20',
@@ -569,6 +609,197 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
     );
   }
 
+  // ==================== 作者与团队 ====================
+
+  Widget _buildTeamCard(bool isDark) {
+    final people = [
+      _TeamMember(
+        role: '作者',
+        name: 'AnonUsAl',
+        qq: '3353739856',
+        icon: Icons.person_outline,
+        iconColor: const Color(0xFF7E57C2),
+      ),
+      _TeamMember(
+        role: 'QA',
+        name: '屿',
+        qq: '3801901707',
+        icon: Icons.bug_report_outlined,
+        iconColor: const Color(0xFFEF6C00),
+      ),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.cardBgOf(context),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          // 团队成员
+          ...people.map((m) => _buildTeamMemberTile(m)),
+          _buildDivider(),
+          // 团队
+          _buildTeamTile(isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamMemberTile(_TeamMember m) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: m.iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(m.icon, color: m.iconColor, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      m.name,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppTheme.textHintOf(context)
+                            .withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        m.role,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppTheme.textHintOf(context),
+                              fontSize: 11,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                InkWell(
+                  onTap: () => _copyQQ(m.qq),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'QQ：${m.qq}',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(
+                                color: AppTheme.textSecondaryOf(context),
+                              ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.copy_outlined,
+                          size: 13,
+                          color: AppTheme.textHintOf(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTeamTile(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.group_outlined,
+                color: AppTheme.primaryColor, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'ClouderyStudio',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '云术工作室',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textSecondaryOf(context),
+                      ),
+                ),
+              ],
+            ),
+          ),
+          InkWell(
+            onTap: () => _launchUrl('https://www.cldery.com'),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '官网',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.primaryColor,
+                        ),
+                  ),
+                  const SizedBox(width: 2),
+                  const Icon(
+                    Icons.open_in_new,
+                    size: 14,
+                    color: AppTheme.primaryColor,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _copyQQ(String qq) {
+    Clipboard.setData(ClipboardData(text: qq));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已复制 QQ 号：$qq')),
+    );
+  }
+
   // ==================== 工具 ====================
 
   Future<void> _launchUrl(String url) async {
@@ -595,5 +826,22 @@ class _ChangelogEntry {
     required this.date,
     required this.changes,
     this.isLatest = false,
+  });
+}
+
+/// 作者 / 团队成员
+class _TeamMember {
+  final String role;
+  final String name;
+  final String qq;
+  final IconData icon;
+  final Color iconColor;
+
+  _TeamMember({
+    required this.role,
+    required this.name,
+    required this.qq,
+    required this.icon,
+    required this.iconColor,
   });
 }

@@ -17,10 +17,15 @@ class NotificationService {
   static const int _maxDailyReminderTimes = 10;
   static const int _medReminderIdBase = 200;
   static const int _maxMedReminders = 800; // 80 药物 × 10 时间点
-  static const String _channelId = 'daily_reminder';
+  static const String _channelId = 'daily_reminder_notify';
   static const String _channelName = '每日情绪记录提醒';
-  static const String _medChannelId = 'medication_reminder';
+  static const String _alarmChannelId = 'daily_reminder_alarm';
+  static const String _medChannelId = 'medication_reminder_notify';
   static const String _medChannelName = '用药提醒';
+  static const String _medAlarmChannelId = 'medication_reminder_alarm';
+
+  /// 全局导航器，用于通知点击时跳转页面
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   bool _initialized = false;
   /// 缓存精确闹钟权限状态，避免重复尝试失败
@@ -49,9 +54,13 @@ class NotificationService {
     _initialized = true;
   }
 
-  /// 通知点击回调 — 确保应用被通知唤醒时能正确响应
+  /// 通知点击回调 — 跳转到主页
   static void _onNotificationResponse(NotificationResponse response) {
     debugPrint('Notification tapped: id=${response.id}, payload=${response.payload}');
+    final nav = navigatorKey.currentState;
+    if (nav != null) {
+      nav.pushNamedAndRemoveUntil('/', (_) => false);
+    }
   }
 
   /// 根据用户设置的时区更新 tz.local
@@ -148,9 +157,6 @@ class NotificationService {
   /// 检查是否拥有精确闹钟权限，没有则尝试请求
   /// 仅在闹钟模式下需要调用
   Future<bool> _ensureExactAlarm() async {
-    // 如果已知没有权限，直接返回 false 避免重复尝试
-    if (_canUseExactAlarm == false) return false;
-
     final androidImpl = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     if (androidImpl == null) return true; // 非 Android 平台
@@ -160,13 +166,15 @@ class NotificationService {
         _canUseExactAlarm = true;
         return true;
       }
-      // 没有精确闹钟权限，尝试请求
-      final granted = await androidImpl.requestExactAlarmsPermission() ?? false;
-      if (granted) {
-        _canUseExactAlarm = true;
-        return true;
+      // 没有精确闹钟权限，尝试请求（仅在未确认过时弹窗）
+      if (_canUseExactAlarm == null) {
+        final granted = await androidImpl.requestExactAlarmsPermission() ?? false;
+        if (granted) {
+          _canUseExactAlarm = true;
+          return true;
+        }
       }
-      // 请求后再次检查（用户可能已手动开启）
+      // 再次检查（用户可能已手动在系统设置中开启）
       final recheck = await androidImpl.canScheduleExactNotifications();
       if (recheck == true) {
         _canUseExactAlarm = true;
@@ -175,7 +183,7 @@ class NotificationService {
     } catch (e) {
       debugPrint('_ensureExactAlarm permission check error: $e');
     }
-    // 确认无精确闹钟权限，标记并返回 false
+    // 确认无精确闹钟权限，标记为无权限（但下次仍会重新检查）
     _canUseExactAlarm = false;
     return false;
   }
@@ -245,8 +253,9 @@ class NotificationService {
 
     final prefs = PreferencesService();
     final stylePref = prefs.dailyReminderStyle;
+    final channelId = stylePref == 'alarm' ? _alarmChannelId : _channelId;
     final androidDetails = _androidDetails(
-      channelId: _channelId,
+      channelId: channelId,
       channelName: _channelName,
       channelDescription: '每天定时提醒你记录情绪',
       stylePreference: stylePref,
@@ -338,8 +347,9 @@ class NotificationService {
 
     final prefs = PreferencesService();
     final stylePref = prefs.medicationReminderStyle;
+    final channelId = stylePref == 'alarm' ? _medAlarmChannelId : _medChannelId;
     final androidDetails = _androidDetails(
-      channelId: _medChannelId,
+      channelId: channelId,
       channelName: _medChannelName,
       channelDescription: '药物服用提醒',
       stylePreference: stylePref,
