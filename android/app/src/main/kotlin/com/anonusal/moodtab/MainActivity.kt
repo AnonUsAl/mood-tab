@@ -1,4 +1,4 @@
-package com.example.mood_tab
+package com.anonusal.moodtab
 
 import io.flutter.embedding.android.FlutterActivity
 

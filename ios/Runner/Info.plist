@@ -26,6 +26,12 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>冲突关怀模块需要访问相册来加载关怀图片</string>
+	<key>NSRemoteNotificationUsageDescription</key>
+	<string>需要发送每日情绪记录提醒</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>需要发送每日情绪记录提醒</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -66,11 +72,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>冲突关怀模块需要访问相册来加载关怀图片</string>
-	<key>NSUserNotificationUsageDescription</key>
-	<string>需要发送每日情绪记录提醒</string>
-	<key>NSRemoteNotificationUsageDescription</key>
-	<string>需要发送每日情绪记录提醒</string>
 </dict>
 </plist>

@@ -153,12 +153,37 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v3.0.4',
+        date: '2026-07',
+        changes: [
+          '🌙 修复 GitHub 源码图标在深色模式下不可见的问题',
+          '🐛 修复已知 bug，增加用户体验(bush)',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
+        version: 'v3.0.2',
+        date: '2026-07',
+        changes: [
+          '🛠️ 修复数据恢复功能 — 可以从备份 JSON 文件恢复数据',
+          '📂 数据恢复支持文件选择器选择备份文件',
+        ],
+      ),
+      _ChangelogEntry(
+        version: 'v3.0.0',
+        date: '2026-07',
+        changes: [
+          '🎉 脑电波 3.0.0 正式发布',
+          '📦 应用包名更新为 com.anonusal.moodtab',
+          '⚠️ 包名变更：安装新版前请先卸载旧版（或与旧版并存）',
+        ],
+      ),
+      _ChangelogEntry(
         version: 'v2.7.26',
         date: '2025-07',
         changes: [
           '🐛 修复了一些 bug',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v2.7.25',
@@ -508,7 +533,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
         children: [
           _buildLinkTile(
             icon: Icons.code,
-            iconColor: const Color(0xFF24292e),
+            iconColor: isDark ? Colors.white : const Color(0xFF24292e),
             title: 'GitHub 源码',
             subtitle: 'github.com/ClouderyStudio/mood-tab',
             onTap: () => _launchUrl('https://github.com/ClouderyStudio/mood-tab'),
@@ -621,11 +646,39 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
         iconColor: const Color(0xFF7E57C2),
       ),
       _TeamMember(
+        role: '栖所作者',
+        name: '云竹',
+        qq: '2457483710',
+        icon: Icons.eco,
+        iconColor: const Color(0xFF43A047),
+      ),
+      _TeamMember(
+        role: '栖所作者',
+        name: '柒屹',
+        qq: '2675256772',
+        icon: Icons.landscape,
+        iconColor: const Color(0xFF00897B),
+      ),
+      _TeamMember(
         role: 'QA',
         name: '屿',
         qq: '3801901707',
-        icon: Icons.bug_report_outlined,
+        icon: Icons.person,
         iconColor: const Color(0xFFEF6C00),
+      ),
+      _TeamMember(
+        role: 'QA',
+        name: '愤怒大黑狗',
+        qq: '2095180081',
+        icon: Icons.pets_outlined,
+        iconColor: const Color(0xFF424242),
+      ),
+      _TeamMember(
+        role: 'QA',
+        name: '轩不是车干',
+        qq: '570969867',
+        icon: Icons.emoji_emotions,
+        iconColor: const Color(0xFF26A69A),
       ),
     ];
 

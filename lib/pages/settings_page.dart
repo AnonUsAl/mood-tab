@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../providers/mood_provider.dart';
@@ -1283,7 +1284,69 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _restoreData() async {
-    _showSnackBar('请通过文件管理器选择备份文件恢复');
+    try {
+      // 1. 选择备份文件
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final file = File(result.files.single.path!);
+      final content = await file.readAsString();
+
+      // 2. 解析 JSON
+      final dynamic decoded = jsonDecode(content);
+      if (decoded is! List) {
+        _showSnackBar('无效的备份文件格式：根节点应为数组');
+        return;
+      }
+      final data = decoded.cast<Map<String, dynamic>>();
+
+      if (data.isEmpty) {
+        _showSnackBar('备份文件为空');
+        return;
+      }
+
+      // 3. 获取当前记录数
+      final currentCount = await _dbService.getRecordCount();
+
+      // 4. 确认对话框
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('恢复数据'),
+          content: Text(
+            '恢复操作将删除现有 $currentCount 条记录，'
+            '替换为备份文件中的 ${data.length} 条记录。\n\n'
+            '此操作不可撤销，确定继续？',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('确定恢复',
+                  style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+
+      // 5. 执行恢复
+      await _dbService.importAll(data);
+      if (mounted) {
+        context.read<MoodProvider>().loadAllData();
+      }
+      _showSnackBar('已恢复 ${data.length} 条记录');
+    } on FormatException {
+      _showSnackBar('文件格式无效，请选择正确的备份 JSON 文件');
+    } catch (e) {
+      _showSnackBar('恢复失败：$e');
+    }
   }
 
   // ==================== 工具 ====================
