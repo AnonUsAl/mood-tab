@@ -858,8 +858,9 @@ class _StatsPageState extends State<StatsPage> {
           ),
           const SizedBox(height: 20),
           // 柱状图
+          // 高度 160：88px 最大柱体 + 约 60px 顶部数字/底部标签区域 + 安全边距
           SizedBox(
-            height: 140,
+            height: 160,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: weekdayLabels.map((label) {
