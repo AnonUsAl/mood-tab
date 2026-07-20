@@ -153,13 +153,20 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v3.0.5',
+        date: '2026-07',
+        changes: [
+          '🐛 修复「星期情绪分析」柱状图溢出 bug — 当某天平均强度接近 5.0 时，柱体 + 顶部数字 + 底部「周X/几条」标签的总高度超过容器高度，导致底部标签被卡片裁切（如「周二」「1条」被分开显示）',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
         version: 'v3.0.4',
         date: '2026-07',
         changes: [
           '🌙 修复 GitHub 源码图标在深色模式下不可见的问题',
           '🐛 修复已知 bug，增加用户体验(bush)',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v3.0.2',

@@ -865,8 +865,11 @@ class _StatsPageState extends State<StatsPage> {
               children: weekdayLabels.map((label) {
                 final stat = stats[label];
                 final hasData = stat != null && stat.count > 0;
+                // 柱体最大高度 88px：保留 52px 给顶部数字和底部「周X/X条」标签
+                // 避免 5.0 满柱时 Column 内容溢出 SizedBox
+                const maxBarHeight = 88.0;
                 final barHeight = hasData && maxAvg > 0
-                    ? (stat.avgIntensity / 5.0 * 100)
+                    ? (stat.avgIntensity / 5.0 * maxBarHeight)
                     : 0.0;
 
                 return Expanded(
