@@ -902,23 +902,33 @@ class _StatsPageState extends State<StatsPage> {
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: AppTheme.textHintOf(context),
+                        // 固定高度的底部标签区，保证各列星期标签始终对齐同一基线
+                        // 显式设定行高：10*1.2 + 2 + 9*1.2 ≈ 24.8，取 32 留足余量
+                        SizedBox(
+                          height: 32,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                label,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  height: 1.2,
+                                  color: AppTheme.textHintOf(context),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                hasData ? '${stat.count}条' : '',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  height: 1.2,
+                                  color: AppTheme.textHintOf(context),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        if (hasData) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            '${stat.count}条',
-                            style: TextStyle(
-                              fontSize: 9,
-                              color: AppTheme.textHintOf(context),
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),

@@ -153,12 +153,19 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v3.0.7',
+        date: '2026-07',
+        changes: [
+          '🐛 修复「星期情绪分析」柱状图底部再次溢出 2px 的问题 — 底部「星期 + 条数」标签区改为固定 32px 高度，并给中文文字显式设定 1.2 行高，同时让各列星期标签始终对齐同一基线',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
         version: 'v3.0.6',
         date: '2026-07',
         changes: [
           '🐛 修复「星期情绪分析」柱状图底部再次溢出的问题 — 中文文字实际行高比预估大，将容器高度从 140px 提升至 160px，彻底解决 BOTTOM OVERFLOWED 警告',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v3.0.5',
