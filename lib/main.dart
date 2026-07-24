@@ -189,23 +189,7 @@ class _MainScaffoldState extends State<MainScaffold> {
         index: _currentIndex,
         children: _pages,
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const MoodRecordPage(),
-            ),
-          );
-        },
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: Colors.white,
-        elevation: 3,
-        child: const Icon(Icons.edit_note, size: 28),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 8,
         elevation: 0,
         color: bottomBarColor,
         surfaceTintColor: Colors.transparent,
@@ -217,11 +201,55 @@ class _MainScaffoldState extends State<MainScaffold> {
               _buildNavItem(0, Icons.home_outlined, Icons.home, '今日'),
               _buildNavItem(
                   1, Icons.calendar_month_outlined, Icons.calendar_month, '日历'),
-              const SizedBox(width: 48),
+              _buildRecordNavItem(),
               _buildNavItem(2, Icons.bar_chart_outlined, Icons.bar_chart, '统计'),
               _buildNavItem(3, Icons.person_outline, Icons.person, '我的'),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  /// 中间的「记录」入口 —— 不是切换 tab，而是打开记录页
+  Widget _buildRecordNavItem() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const MoodRecordPage(),
+          ),
+        );
+      },
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 70,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.edit_note,
+                size: 22,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 2),
+            const Text(
+              '记录',
+              style: TextStyle(
+                fontSize: 11,
+                color: AppTheme.primaryColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );

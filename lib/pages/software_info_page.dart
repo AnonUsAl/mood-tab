@@ -153,12 +153,19 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v3.0.8',
+        date: '2026-07',
+        changes: [
+          '🎨 重做底部导航栏 — 移除中间半悬浮的记录按钮（及导航栏圆形缺口），改为「今日 / 日历 / 记录 / 统计 / 我的」五个标签平铺，记录入口融入导航栏，不再遮挡页面内容，视觉更统一',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
         version: 'v3.0.7',
         date: '2026-07',
         changes: [
           '🐛 修复「星期情绪分析」柱状图底部再次溢出 2px 的问题 — 底部「星期 + 条数」标签区改为固定 32px 高度，并给中文文字显式设定 1.2 行高，同时让各列星期标签始终对齐同一基线',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v3.0.6',
