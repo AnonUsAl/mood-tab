@@ -73,11 +73,7 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
   Widget build(BuildContext context) {
     final isBackfill = _backfillDate != null;
     final isEditing = _editingRecord != null;
-    final title = isEditing
-        ? '修改心情'
-        : isBackfill
-            ? '补记 · ${_backfillDate!.month}月${_backfillDate!.day}日'
-            : '记录心情';
+    final title = isEditing ? '修改心情' : '记录心情';
 
     return Scaffold(
       appBar: AppBar(
@@ -105,30 +101,58 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 8),
-              // 补记日期提示
-              if (_backfillDate != null)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.event_note, size: 16, color: AppTheme.primaryColor),
-                      const SizedBox(width: 6),
-                      Text(
-                        '补记 ${_backfillDate!.year}年${_backfillDate!.month}月${_backfillDate!.day}日的情绪',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppTheme.primaryColor,
-                          fontWeight: FontWeight.w500,
+              // 非编辑模式：可选择记录日期
+              if (!isEditing) ...[
+                GestureDetector(
+                  onTap: _pickDate,
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isBackfill
+                          ? AppTheme.primaryColor.withValues(alpha: 0.1)
+                          : AppTheme.cardBgOf(context),
+                      borderRadius: BorderRadius.circular(8),
+                      border: isBackfill
+                          ? null
+                          : Border.all(color: AppTheme.dividerOf(context)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 16,
+                          color: isBackfill
+                              ? AppTheme.primaryColor
+                              : AppTheme.textSecondaryOf(context),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        Text(
+                          isBackfill
+                              ? '补记 ${_backfillDate!.year}年${_backfillDate!.month}月${_backfillDate!.day}日的情绪'
+                              : '记录今天的情绪 · 点击可切换日期',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isBackfill
+                                ? AppTheme.primaryColor
+                                : AppTheme.textSecondaryOf(context),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const Spacer(),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 16,
+                          color: isBackfill
+                              ? AppTheme.primaryColor
+                              : AppTheme.textHintOf(context),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
+              ],
+              // 补记日期提示（保留旧逻辑兼容，编辑模式下不显示）
               // 步骤 1: 选择情绪
               _buildSectionLabel(_backfillDate != null ? '那天的心情是什么？' : '选择此刻的情绪'),
               const SizedBox(height: 12),
@@ -571,6 +595,27 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
     };
     // 强度 4-5 且为负面情绪时触发
     return negativeMoods.contains(_selectedMood) && _intensity >= 4;
+  }
+
+  /// 选择记录日期（仅新建模式下可用）
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _backfillDate ?? now,
+      firstDate: DateTime(2020),
+      lastDate: now,
+      helpText: '选择记录的日期',
+      cancelText: '取消',
+      confirmText: '确定',
+    );
+    if (picked == null) return;
+    // 如果是今天，清空补记日期（使用默认 DateTime.now()）
+    final today = DateTime(now.year, now.month, now.day);
+    final pickedDay = DateTime(picked.year, picked.month, picked.day);
+    setState(() {
+      _backfillDate = pickedDay == today ? null : picked;
+    });
   }
 
   /// 保存记录

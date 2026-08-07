@@ -220,6 +220,15 @@ class _DiaryPageState extends State<DiaryPage> {
                       ? _buildExpandedImages(record.diaryImages)
                       : _buildCollapsedImages(record.diaryImages),
                 ],
+                // 操作提示
+                const SizedBox(height: 10),
+                Text(
+                  '长按可修改日记',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppTheme.textHintOf(context),
+                        fontSize: 11,
+                      ),
+                ),
               ],
             ),
           ),

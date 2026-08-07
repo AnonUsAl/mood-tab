@@ -11,6 +11,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../providers/mood_provider.dart';
@@ -190,29 +191,73 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         child: Row(
           children: [
-            // 头像（有昵称时显示首字，否则显示默认图标）
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Center(
-                child: userName.isNotEmpty
-                    ? Text(
-                        userName.characters.first.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.person,
-                        size: 36,
-                        color: Colors.white,
+            // 头像 —— 点击可更换图片
+            GestureDetector(
+              onTap: _pickAvatar,
+              child: Stack(
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: () {
+                        final avatarPath = provider.userAvatarPath;
+                        if (avatarPath.isNotEmpty) {
+                          final file = File(avatarPath);
+                          if (file.existsSync()) {
+                            return Image.file(
+                              file,
+                              fit: BoxFit.cover,
+                              width: 64,
+                              height: 64,
+                            );
+                          }
+                        }
+                        // 无图片时：有昵称显示首字，否则显示默认图标
+                        return Center(
+                          child: provider.userName.isNotEmpty
+                              ? Text(
+                                  provider.userName.characters.first
+                                      .toUpperCase(),
+                                  style: const TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.person,
+                                  size: 36,
+                                  color: Colors.white,
+                                ),
+                        );
+                      }(),
+                    ),
+                  ),
+                  // 右下角相机角标
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        borderRadius: BorderRadius.circular(6),
                       ),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        size: 13,
+                        color: AppTheme.primaryColor,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 16),
@@ -292,6 +337,40 @@ class _SettingsPageState extends State<SettingsPage> {
   // ==================== 分区标题 ====================
 
   /// 编辑用户昵称
+  /// 选择头像图片
+  Future<void> _pickAvatar() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+    if (!mounted) return;
+
+    // 将图片复制到应用文档目录（永久存储），避免缓存清理后丢失
+    final dir = await getApplicationDocumentsDirectory();
+    final avatarDir = Directory('${dir.path}/avatars');
+    if (!await avatarDir.exists()) {
+      await avatarDir.create(recursive: true);
+    }
+    // 清理旧头像，避免文件堆积
+    final oldFiles = await avatarDir.list().toList();
+    for (final f in oldFiles) {
+      if (f is File) {
+        try { await f.delete(); } catch (_) {}
+      }
+    }
+    final avatarFile = File(
+      '${avatarDir.path}/avatar_${DateTime.now().millisecondsSinceEpoch}.jpg',
+    );
+    await File(picked.path).copy(avatarFile.path);
+
+    final provider = context.read<MoodProvider>();
+    await provider.setUserAvatarPath(avatarFile.path);
+  }
+
   Future<void> _editUserName() async {
     final provider = context.read<MoodProvider>();
     final controller = TextEditingController(text: provider.userName);

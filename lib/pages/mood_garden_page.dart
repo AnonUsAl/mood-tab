@@ -62,7 +62,12 @@ class Stroke {
 class _MoodGardenPageState extends State<MoodGardenPage> {
   List<MoodRecord> _recentRecords = [];
   bool _isLoading = false;
+  bool _initialLoaded = false;
   MoodProvider? _providerRef;
+
+  /// 交互画布高度：随屏幕自适应，避免大屏浪费空间、小屏溢出。
+  double get _canvasHeight =>
+      (MediaQuery.of(context).size.height * 0.46).clamp(360.0, 520.0);
 
   BrushType _brushType = BrushType.pen;
   Color _brushColor = Colors.pink;
@@ -215,10 +220,19 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    // 仅首次加载显示全屏转圈；后续 provider 变化（别处增删改记录）
+    // 静默刷新，避免画布与涂鸦被 loading 覆盖闪烁。
+    if (!_initialLoaded) {
+      setState(() => _isLoading = true);
+    }
     final provider = context.read<MoodProvider>();
-    _recentRecords = await provider.getRecentRecords(30);
-    setState(() => _isLoading = false);
+    final records = await provider.getRecentRecords(30);
+    if (!mounted) return;
+    setState(() {
+      _recentRecords = records;
+      _isLoading = false;
+      _initialLoaded = true;
+    });
   }
 
   @override
@@ -345,9 +359,10 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
   }
 
   Widget _buildGardenCanvas(bool isDark) {
+    final canvasHeight = _canvasHeight;
     return Container(
       key: _canvasKey,
-      height: 380,
+      height: canvasHeight,
       decoration: BoxDecoration(
         color: AppTheme.cardBgOf(context),
         borderRadius: BorderRadius.circular(16),
@@ -365,8 +380,8 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
                 ),
               ),
             ),
-            _buildButterflyAnimation(),
-            _buildStarAnimation(isDark),
+            _buildButterflyAnimation(canvasHeight),
+            _buildStarAnimation(isDark, canvasHeight),
             _buildDrawingLayer(isDark),
           ],
         ),
@@ -405,14 +420,14 @@ class _MoodGardenPageState extends State<MoodGardenPage> {
     );
   }
 
-  Widget _buildButterflyAnimation() {
+  Widget _buildButterflyAnimation(double canvasHeight) {
     if (_recentRecords.length < 5) return const SizedBox.shrink();
-    return const _ButterflyAnimation();
+    return _ButterflyAnimation(canvasHeight: canvasHeight);
   }
 
-  Widget _buildStarAnimation(bool isDark) {
+  Widget _buildStarAnimation(bool isDark, double canvasHeight) {
     if (!isDark || _recentRecords.isEmpty) return const SizedBox.shrink();
-    return const _StarAnimation();
+    return _StarAnimation(canvasHeight: canvasHeight);
   }
 
   Widget _buildFlowerLegend() {
@@ -988,7 +1003,8 @@ class _GardenPainter extends CustomPainter {
 }
 
 class _ButterflyAnimation extends StatefulWidget {
-  const _ButterflyAnimation();
+  final double canvasHeight;
+  const _ButterflyAnimation({required this.canvasHeight});
 
   @override
   State<_ButterflyAnimation> createState() => _ButterflyAnimationState();
@@ -1035,7 +1051,7 @@ class _ButterflyAnimationState extends State<_ButterflyAnimation>
       builder: (context, child) {
         return Positioned(
           left: MediaQuery.of(context).size.width * _xAnimation.value,
-          top: 380 * _yAnimation.value,
+          top: widget.canvasHeight * _yAnimation.value,
           child: Transform.scale(
             scale: _scaleAnimation.value,
             child: const Text(
@@ -1050,7 +1066,8 @@ class _ButterflyAnimationState extends State<_ButterflyAnimation>
 }
 
 class _StarAnimation extends StatefulWidget {
-  const _StarAnimation();
+  final double canvasHeight;
+  const _StarAnimation({required this.canvasHeight});
 
   @override
   State<_StarAnimation> createState() => _StarAnimationState();
@@ -1095,7 +1112,7 @@ class _StarAnimationState extends State<_StarAnimation>
         final opacity = (math.sin(_controller.value * math.pi * 2 + delay) + 1) / 2;
         return Positioned(
           left: MediaQuery.of(context).size.width * left,
-          top: 380 * top,
+          top: widget.canvasHeight * top,
           child: Opacity(
             opacity: opacity * 0.8,
             child: const Text('⭐', style: TextStyle(fontSize: 12)),

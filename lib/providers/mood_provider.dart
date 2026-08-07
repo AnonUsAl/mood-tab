@@ -27,6 +27,9 @@ class MoodProvider extends ChangeNotifier {
   /// 用户昵称
   String _userName = '';
 
+  /// 用户头像本地路径（空字符串表示未设置）
+  String _userAvatarPath = '';
+
   /// 药物列表
   List<Medication> _medications = [];
 
@@ -47,6 +50,7 @@ class MoodProvider extends ChangeNotifier {
   /// 应改用 Theme.of(context).brightness == Brightness.dark。
   bool get isDarkMode => _themeMode == 'dark';
   String get userName => _userName;
+  String get userAvatarPath => _userAvatarPath;
   List<Medication> get medications => _medications;
   bool get hasCheckedInToday => _hasCheckedInToday;
   int get checkinStreak => _checkinStreak;
@@ -79,6 +83,7 @@ class MoodProvider extends ChangeNotifier {
       await _prefs.init();
       _themeMode = _prefs.themeMode;
       _userName = _prefs.userName;
+      _userAvatarPath = _prefs.userAvatarPath;
       _medications = _prefs.getMedications();
       MoodTags.setCustomTags(_prefs.getCustomTags());
       await _reloadRecords();
@@ -188,6 +193,13 @@ class MoodProvider extends ChangeNotifier {
   Future<void> setUserName(String name) async {
     _userName = name;
     await _prefs.setUserName(name);
+    notifyListeners();
+  }
+
+  /// 设置用户头像路径
+  Future<void> setUserAvatarPath(String path) async {
+    _userAvatarPath = path;
+    await _prefs.setUserAvatarPath(path);
     notifyListeners();
   }
 

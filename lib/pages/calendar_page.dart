@@ -427,7 +427,10 @@ class _CalendarPageState extends State<CalendarPage> {
     final hour = record.createdAt.hour.toString().padLeft(2, '0');
     final minute = record.createdAt.minute.toString().padLeft(2, '0');
 
-    return Container(
+    return GestureDetector(
+      onTap: () => _editRecord(record),
+      onLongPress: () => _showRecordActions(record),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -485,6 +488,130 @@ class _CalendarPageState extends State<CalendarPage> {
           ),
         ],
       ),
+      ),
+    );
+  }
+
+  /// 点击记录卡片 → 直接进入编辑
+  Future<void> _editRecord(MoodRecord record) async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MoodRecordPage(existingRecord: record),
+      ),
+    );
+    if (result == true && mounted) {
+      _loadMonthData();
+    }
+  }
+
+  /// 长按记录卡片 → 弹出编辑/删除操作菜单
+  void _showRecordActions(MoodRecord record) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: AppTheme.cardBgOf(context),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(0, 12, 0, 24),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 拖拽条
+                Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.textHintOf(context).withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                  child: Row(
+                    children: [
+                      Text(record.moodType.emoji,
+                          style: const TextStyle(fontSize: 20)),
+                      const SizedBox(width: 10),
+                      Text(
+                        record.moodType.label,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('修改这条记录'),
+                  onTap: () async {
+                    Navigator.of(ctx).pop();
+                    final result = await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => MoodRecordPage(existingRecord: record),
+                      ),
+                    );
+                    if (result == true) {
+                      _loadMonthData();
+                    }
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.delete_outline, color: Colors.red.shade400),
+                  title: Text('删除这条记录',
+                      style: TextStyle(color: Colors.red.shade400)),
+                  onTap: () async {
+                    Navigator.of(ctx).pop();
+                    final shouldDelete = await _confirmDelete(record) ?? false;
+                    if (shouldDelete && mounted) {
+                      await context
+                          .read<MoodProvider>()
+                          .deleteRecord(record.id!);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('记录已删除'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                      _loadMonthData();
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<bool?> _confirmDelete(MoodRecord record) async {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('删除这条记录？'),
+          content: Text('删除后无法恢复。确定要删除这条${record.moodType.label}记录吗？'),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('取消'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -155,7 +155,7 @@ class NotificationService {
   }
 
   /// 检查是否拥有精确闹钟权限，没有则尝试请求
-  /// 仅在闹钟模式下需要调用
+  /// 药物提醒为时间敏感型，主动确保精确调度权限可用
   Future<bool> _ensureExactAlarm() async {
     final androidImpl = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
@@ -166,8 +166,8 @@ class NotificationService {
         _canUseExactAlarm = true;
         return true;
       }
-      // 没有精确闹钟权限，尝试请求（仅在未确认过时弹窗）
-      if (_canUseExactAlarm == null) {
+      // 没有精确闹钟权限，尝试请求（每次启动都尝试，不依赖缓存）
+      if (_canUseExactAlarm != true) {
         final granted = await androidImpl.requestExactAlarmsPermission() ?? false;
         if (granted) {
           _canUseExactAlarm = true;
@@ -183,19 +183,19 @@ class NotificationService {
     } catch (e) {
       debugPrint('_ensureExactAlarm permission check error: $e');
     }
-    // 确认无精确闹钟权限，标记为无权限（但下次仍会重新检查）
+    // 确认无精确闹钟权限，但不永久缓存——下次启动仍会重新检查
     _canUseExactAlarm = false;
     return false;
   }
 
   /// 根据提醒风格选择调度模式
-  /// 闹钟模式：需要精确闹钟权限，确保精准触发
-  /// 通知模式：使用不精确模式即可，不主动请求精确闹钟权限
-  AndroidScheduleMode _resolveScheduleMode(String stylePreference, bool hasExactAlarm) {
-    if (stylePreference == 'alarm' && hasExactAlarm) {
+  /// 药物提醒为时间敏感型通知，始终优先使用精确调度确保后台可靠触发。
+  /// 风格偏好（通知/闹钟）仅影响通知的外观表现，不影响调度精确度。
+  AndroidScheduleMode _resolveScheduleMode(bool hasExactAlarm) {
+    if (hasExactAlarm) {
       return AndroidScheduleMode.exactAllowWhileIdle;
     }
-    // 通知模式或闹钟模式但无精确闹钟权限：使用不精确模式
+    // 无精确闹钟权限时回退到不精确模式
     return AndroidScheduleMode.inexactAllowWhileIdle;
   }
 
@@ -214,9 +214,19 @@ class NotificationService {
         icon: '@drawable/ic_notification',
         enableVibration: true,
         playSound: true,
+        // 使用系统默认闹钟提示音（区别于通知的提示音）
+        sound: const UriAndroidNotificationSound(
+          'content://settings/system/alarm_alert',
+        ),
         category: AndroidNotificationCategory.alarm,
         fullScreenIntent: true,
         visibility: NotificationVisibility.public,
+        // 闹钟模式：持续展示直到用户操作
+        ongoing: true,
+        autoCancel: false,
+        showWhen: true,
+        usesChronometer: false,
+        color: const Color(0xFFE53935),
       );
     }
     return AndroidNotificationDetails(
@@ -226,6 +236,9 @@ class NotificationService {
       priority: Priority.high,
       icon: '@drawable/ic_notification',
       visibility: NotificationVisibility.public,
+      // 通知模式：可滑动清除
+      ongoing: false,
+      autoCancel: true,
     );
   }
 
@@ -265,7 +278,7 @@ class NotificationService {
       android: androidDetails, iOS: iosDetails,
     );
 
-    var scheduleMode = _resolveScheduleMode(stylePref, hasExactAlarm);
+    var scheduleMode = _resolveScheduleMode(hasExactAlarm);
 
     for (int i = 0; i < times.length && i < _maxDailyReminderTimes; i++) {
       final parts = times[i].split(':');
@@ -359,7 +372,7 @@ class NotificationService {
       android: androidDetails, iOS: iosDetails,
     );
 
-    var scheduleMode = _resolveScheduleMode(stylePref, hasExactAlarm);
+    var scheduleMode = _resolveScheduleMode(hasExactAlarm);
 
     try {
       await _plugin.zonedSchedule(

@@ -51,9 +51,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
 
             // 版本号
             Text(
-              _packageInfo != null
-                  ? '脑电波 v${_packageInfo!.version}'
-                  : '脑电波',
+              _packageInfo != null ? '脑电波 v${_packageInfo!.version}' : '脑电波',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -95,7 +93,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
 
             // 底部致谢
             Text(
-              '用 ❤️ 打造 · 100% 本地存储 · 零云端上传',
+              '仅本地存储 零云端上传  感谢 AnonUsAl 作者的倾尽全力',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppTheme.textHintOf(context),
                   ),
@@ -153,12 +151,56 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v3.0.13',
+        date: '2026-08',
+        changes: [
+          '✨ 新增「关于作者」页面 — 首次启动时在隐私协议后展示，介绍作者背景、技能、团队与联系方式',
+          '- 姓名卡片、个人简介、心理关怀说明',
+          '- 技术能力标签云',
+          '- ClouderyStudio 团队介绍与官网链接',
+          '- GitHub / 邮箱 / QQ / Telegram / LINE / WhatsApp 联系方式（QQ 等支持一键复制）',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
+        version: 'v3.0.12',
+        date: '2026-08',
+        changes: [
+          '✨ 新增隐私保护指引 — 首次启动时展示，涵盖数据存储、权限说明、免责声明等',
+        ],
+      ),
+      _ChangelogEntry(
+        version: 'v3.0.11',
+        date: '2026-08',
+        changes: [
+          '✨ 日记卡片底部增加「长按可修改日记」操作提示文字',
+          '✨ 日历页记录卡片支持点击直接进入编辑（长按操作菜单保留）',
+          '✨ 情绪记录页支持选择历史日期 — 新建记录时可点击顶部日期行切换过去日期',
+        ],
+      ),
+      _ChangelogEntry(
+        version: 'v3.0.10',
+        date: '2026-08',
+        changes: [
+          '🐛 修复用药提醒仅在应用前台运行时有效的问题 — 通知/闹钟模式均使用精确调度确保后台可靠触发',
+          '🐛 修复闹钟模式与系统通知视觉无区分 — 闹钟模式持续展示、锁屏全屏弹出、使用系统闹钟提示音',
+          '🐛 修复药物剂量文字过长时超出容器边界、覆盖药物名称的布局问题',
+          '🐛 修复头像设置后退出重进丢失的问题 — 图片从临时缓存复制到应用文档目录永久存储',
+        ],
+      ),
+      _ChangelogEntry(
+        version: 'v3.0.9',
+        date: '2026-07',
+        changes: [
+          '🖼️ 头像支持自定义图片 — 在「我的」页面点击头像即可从相册选择照片作为头像，右下角新增相机角标提示；未设置图片时仍显示昵称首字或默认图标',
+        ],
+      ),
+      _ChangelogEntry(
         version: 'v3.0.8',
         date: '2026-07',
         changes: [
           '🎨 重做底部导航栏 — 移除中间半悬浮的记录按钮（及导航栏圆形缺口），改为「今日 / 日历 / 记录 / 统计 / 我的」五个标签平铺，记录入口融入导航栏，不再遮挡页面内容，视觉更统一',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v3.0.7',
@@ -226,7 +268,6 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
         changes: [
           '🐛 修复日历中点击今天显示"补记"而非正常记录 — 今天判定为正常记录入口',
         ],
-        
       ),
       _ChangelogEntry(
         version: 'v2.7.22',
@@ -236,7 +277,6 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
           '🧹 移除冲突关怀页面多余的相册权限逻辑 — 卡片为硬编码数据无需权限',
           '🔧 修复 iOS release IPA 构建失败 — xattr 绕过方案',
         ],
-        
       ),
       _ChangelogEntry(
         version: 'v2.7.21',
@@ -245,7 +285,6 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
           '📧 关于作者页面增加企业邮箱 anonusal@cldery.com',
           '🌐 关于作者页面增加云术工作室官网链接 www.cldery.com',
         ],
-        
       ),
       _ChangelogEntry(
         version: 'v2.7.20',
@@ -258,7 +297,6 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
           '   - 修复启动时通知调度阻塞Splash进入主页',
           '   - 优化权限请求返回值处理',
         ],
-        
       ),
       _ChangelogEntry(
         version: 'v2.7.19',
@@ -266,7 +304,6 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
         changes: [
           '👥 新增关于团队 — 云术工作室官网 www.cldery.com',
         ],
-        
       ),
       _ChangelogEntry(
         version: 'v2.7.18',
@@ -564,7 +601,8 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
             iconColor: isDark ? Colors.white : const Color(0xFF24292e),
             title: 'GitHub 源码',
             subtitle: 'github.com/ClouderyStudio/mood-tab',
-            onTap: () => _launchUrl('https://github.com/ClouderyStudio/mood-tab'),
+            onTap: () =>
+                _launchUrl('https://github.com/ClouderyStudio/mood-tab'),
             isFirst: true,
           ),
           _buildDivider(),
@@ -573,8 +611,8 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
             iconColor: const Color(0xFF4CAF50),
             title: 'Release 下载',
             subtitle: '查看所有版本的安装包',
-            onTap: () =>
-                _launchUrl('https://github.com/ClouderyStudio/mood-tab/releases'),
+            onTap: () => _launchUrl(
+                'https://github.com/ClouderyStudio/mood-tab/releases'),
           ),
           _buildDivider(),
           _buildLinkTile(
@@ -586,7 +624,8 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
               context: context,
               applicationName: '脑电波',
               applicationVersion: _packageInfo?.version ?? '',
-              applicationIcon: const Icon(Icons.favorite_rounded, size: 40, color: AppTheme.primaryColor),
+              applicationIcon: const Icon(Icons.favorite_rounded,
+                  size: 40, color: AppTheme.primaryColor),
             ),
             isLast: true,
           ),
@@ -691,15 +730,8 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
         role: 'QA',
         name: '屿',
         qq: '3801901707',
-        icon: Icons.person,
+        icon: Icons.all_inclusive_rounded,
         iconColor: const Color(0xFFEF6C00),
-      ),
-      _TeamMember(
-        role: 'QA',
-        name: '愤怒大黑狗',
-        qq: '2095180081',
-        icon: Icons.pets_outlined,
-        iconColor: const Color(0xFF424242),
       ),
       _TeamMember(
         role: 'QA',
@@ -784,12 +816,10 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
                       children: [
                         Text(
                           'QQ：${m.qq}',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(
-                                color: AppTheme.textSecondaryOf(context),
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.textSecondaryOf(context),
+                                  ),
                         ),
                         const SizedBox(width: 4),
                         Icon(

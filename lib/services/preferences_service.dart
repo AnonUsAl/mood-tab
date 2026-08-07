@@ -28,12 +28,15 @@ class PreferencesService {
   static const _keyLastCheckInDate = 'last_check_in_date';
   static const _keyCustomTags = 'custom_tags';
   static const _keyUserName = 'user_name';
+  static const _keyUserAvatarPath = 'user_avatar_path';
   static const _keyMedications = 'medications';
   static const _keyGardenDoodles = 'garden_doodles';
   static const _keyEraserSize = 'eraser_size';
   static const _keyDailyReminderStyle = 'daily_reminder_style';
   static const _keyMedicationReminderStyle = 'medication_reminder_style';
   static const _keyTimeZone = 'user_time_zone';
+  static const _keyPrivacyPolicyAccepted = 'privacy_policy_accepted';
+  static const _keyAuthorInfoShown = 'author_info_shown';
 
   /// 初始化，应在 app 启动时调用
   Future<void> init() async {
@@ -154,6 +157,12 @@ class PreferencesService {
   Future<void> setUserName(String value) =>
       _prefsInstance.setString(_keyUserName, value);
 
+  /// 用户头像本地路径，未设置时返回空字符串
+  String get userAvatarPath => _prefsInstance.getString(_keyUserAvatarPath) ?? '';
+
+  Future<void> setUserAvatarPath(String value) =>
+      _prefsInstance.setString(_keyUserAvatarPath, value);
+
   // ==================== 药物提醒 ====================
 
   /// 获取药物列表
@@ -252,6 +261,20 @@ class PreferencesService {
 
   Future<void> setTimeZone(String value) =>
       _prefsInstance.setString(_keyTimeZone, value);
+
+  // ==================== 隐私协议 ====================
+
+  bool get privacyPolicyAccepted =>
+      _prefsInstance.getBool(_keyPrivacyPolicyAccepted) ?? false;
+
+  Future<void> setPrivacyPolicyAccepted(bool value) =>
+      _prefsInstance.setBool(_keyPrivacyPolicyAccepted, value);
+
+  bool get authorInfoShown =>
+      _prefsInstance.getBool(_keyAuthorInfoShown) ?? false;
+
+  Future<void> setAuthorInfoShown(bool value) =>
+      _prefsInstance.setBool(_keyAuthorInfoShown, value);
 
   // ==================== 工具方法 ====================
 
