@@ -209,7 +209,8 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 5,
-        childAspectRatio: 1,
+        // 稍微高一点的格子，留出 emoji + 标签的安全空间，避免 2px 溢出
+        mainAxisExtent: 76,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
       ),

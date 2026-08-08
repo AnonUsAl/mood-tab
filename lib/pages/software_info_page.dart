@@ -151,6 +151,15 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v3.0.14',
+        date: '2026-08',
+        changes: [
+          '🐛 修复「记录心情」页情绪网格底部溢出 2.6 像素的问题 — GridView 加高 mainAxisExtent 至 76',
+          '🐛 修复「添加自定义标签」对话框 emoji 选区底部溢出 14 像素的问题 — 改为 7 列布局 + 弹窗 scrollable',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
         version: 'v3.0.13',
         date: '2026-08',
         changes: [
@@ -160,7 +169,6 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
           '- ClouderyStudio 团队介绍与官网链接',
           '- GitHub / 邮箱 / QQ / Telegram / LINE / WhatsApp 联系方式（QQ 等支持一键复制）',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v3.0.12',

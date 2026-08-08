@@ -203,6 +203,8 @@ class _TagManagementPageState extends State<TagManagementPage> {
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
             return AlertDialog(
+              // 弹窗内容可滚动，避免弹出键盘时底部 emoji 选区溢出
+              scrollable: true,
               title: const Text('添加自定义标签'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -230,13 +232,14 @@ class _TagManagementPageState extends State<TagManagementPage> {
                   const SizedBox(height: 8),
                   // Emoji 选择网格
                   SizedBox(
-                    height: 200,
                     width: double.maxFinite,
                     child: GridView.builder(
                       shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 8,
+                        // 改成 7 列：每格更宽更矮，避免底部一行溢出 14 像素
+                        crossAxisCount: 7,
                         crossAxisSpacing: 4,
                         mainAxisSpacing: 4,
                         childAspectRatio: 1,
