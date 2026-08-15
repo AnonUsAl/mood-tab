@@ -33,6 +33,11 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
+            // flutter_local_notifications 依赖 Gson，需保留其序列化规则，否则通知在 release 包中失效
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
