@@ -151,13 +151,20 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v3.0.15',
+        date: '2026-08',
+        changes: [
+          '🐛 修复通知相关问题',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
         version: 'v3.0.14',
         date: '2026-08',
         changes: [
           '🐛 修复「记录心情」页情绪网格底部溢出 2.6 像素的问题 — GridView 加高 mainAxisExtent 至 76',
           '🐛 修复「添加自定义标签」对话框 emoji 选区底部溢出 14 像素的问题 — 改为 7 列布局 + 弹窗 scrollable',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v3.0.13',
@@ -557,6 +564,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
       ('隐私', '100% 本地 · 零网络上传 · 无第三方统计'),
       ('平台', 'Android · iOS · macOS · Web'),
       ('许可', 'MIT License · 开源免费'),
+      ('备注', 'AnonUsAl 和 屿 的感情永存！'),
     ];
 
     return Container(
@@ -721,6 +729,13 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
         iconColor: const Color(0xFF7E57C2),
       ),
       _TeamMember(
+        role: 'QA',
+        name: '屿',
+        qq: '3801901707',
+        icon: Icons.all_inclusive_rounded,
+        iconColor: const Color(0xFFEF6C00),
+      ),
+      _TeamMember(
         role: '栖所作者',
         name: '云竹',
         qq: '2457483710',
@@ -733,13 +748,6 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
         qq: '2675256772',
         icon: Icons.landscape,
         iconColor: const Color(0xFF00897B),
-      ),
-      _TeamMember(
-        role: 'QA',
-        name: '屿',
-        qq: '3801901707',
-        icon: Icons.all_inclusive_rounded,
-        iconColor: const Color(0xFFEF6C00),
       ),
       _TeamMember(
         role: 'QA',
