@@ -23,6 +23,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
 
   Future<void> _loadPackageInfo() async {
     final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
     setState(() {
       _packageInfo = info;
     });
@@ -93,7 +94,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
 
             // 底部致谢
             Text(
-              '仅本地存储 零云端上传  感谢 AnonUsAl 作者的倾尽全力',
+              '仅本地存储 零云端上传\nAnonUsAl 和 屿 99捏',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppTheme.textHintOf(context),
                   ),
@@ -151,12 +152,21 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v3.0.16',
+        date: '2026-09',
+        changes: [
+          '✨ 心理测评支持选择正式版或预览版，预览版地址为 pre-pt.cldery.com',
+          '🐛 修复栖所网页内容过于靠近顶部栏的问题',
+          '🐛 修复 Android release 构建中通知调度组件可能被 R8 裁剪的问题',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
         version: 'v3.0.15',
         date: '2026-08',
         changes: [
           '🐛 修复通知相关问题',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v3.0.14',
@@ -564,7 +574,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
       ('隐私', '100% 本地 · 零网络上传 · 无第三方统计'),
       ('平台', 'Android · iOS · macOS · Web'),
       ('许可', 'MIT License · 开源免费'),
-      ('备注', 'AnonUsAl 和 屿 的感情永存！'),
+      ('备注', 'AnonUsAl 和 屿 99捏'),
     ];
 
     return Container(
@@ -932,8 +942,16 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Future<void> _launchUrl(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (launched || !mounted) return;
+    } else if (!mounted) {
+      return;
+    }
+
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('无法打开链接：$url')),
       );

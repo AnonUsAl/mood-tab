@@ -23,6 +23,7 @@ class _CalendarPageState extends State<CalendarPage> {
   Map<String, List<MoodRecord>> _monthRecords = {};
   bool _isLoading = false;
   MoodProvider? _providerRef;
+  int _monthChangeDirection = 1;
 
   @override
   void initState() {
@@ -84,6 +85,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
   void _changeMonth(int delta) {
     setState(() {
+      _monthChangeDirection = delta > 0 ? 1 : -1;
       _focusedMonth =
           DateTime(_focusedMonth.year, _focusedMonth.month + delta, 1);
       _selectedDate = null;
@@ -100,13 +102,56 @@ class _CalendarPageState extends State<CalendarPage> {
           children: [
             _buildHeader(),
             _buildWeekdayLabels(),
-            _isLoading
-                ? const Expanded(
-                    child: Center(child: CircularProgressIndicator()))
-                : _buildCalendarGrid(),
+            Expanded(
+              child: Stack(
+                children: [
+                  _buildAnimatedCalendarGrid(),
+                  if (_isLoading)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: ColoredBox(
+                          color: Colors.transparent,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: AppTheme.primaryColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
             if (_selectedDate != null) _buildSelectedDayDetail(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedCalendarGrid() {
+    final monthKey = '${_focusedMonth.year}-${_focusedMonth.month}';
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 360),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      layoutBuilder: (currentChild, previousChildren) =>
+          currentChild ?? const SizedBox.shrink(),
+      transitionBuilder: (child, animation) {
+        final begin = Offset(-_monthChangeDirection.toDouble(), 0);
+        return SlideTransition(
+          position: animation.drive(
+            Tween<Offset>(begin: begin, end: Offset.zero).chain(
+              CurveTween(curve: Curves.easeOutCubic),
+            ),
+          ),
+          child: child,
+        );
+      },
+      child: KeyedSubtree(
+        key: ValueKey(monthKey),
+        child: _buildCalendarGrid(),
       ),
     );
   }
@@ -188,7 +233,7 @@ class _CalendarPageState extends State<CalendarPage> {
     final isCurrentMonth =
         today.year == _focusedMonth.year && today.month == _focusedMonth.month;
 
-    return Expanded(
+    return ClipRect(
       child: GestureDetector(
         onHorizontalDragEnd: (details) {
           if (details.primaryVelocity == null) return;
@@ -209,27 +254,27 @@ class _CalendarPageState extends State<CalendarPage> {
           ),
           itemCount: firstWeekday + daysInMonth,
           itemBuilder: (context, index) {
-          if (index < firstWeekday) {
-            return const SizedBox.shrink();
-          }
-          final day = index - firstWeekday + 1;
-          final date = DateTime(_focusedMonth.year, _focusedMonth.month, day);
-          final key = '${date.year}-${date.month}-${date.day}';
-          final dayRecords = _monthRecords[key] ?? [];
-          final isToday = isCurrentMonth && day == today.day;
-          final isSelected = _selectedDate?.day == day &&
-              _selectedDate?.month == _focusedMonth.month &&
-              _selectedDate?.year == _focusedMonth.year;
+            if (index < firstWeekday) {
+              return const SizedBox.shrink();
+            }
+            final day = index - firstWeekday + 1;
+            final date = DateTime(_focusedMonth.year, _focusedMonth.month, day);
+            final key = '${date.year}-${date.month}-${date.day}';
+            final dayRecords = _monthRecords[key] ?? [];
+            final isToday = isCurrentMonth && day == today.day;
+            final isSelected = _selectedDate?.day == day &&
+                _selectedDate?.month == _focusedMonth.month &&
+                _selectedDate?.year == _focusedMonth.year;
 
-          return _buildDayCell(
-            date: date,
-            day: day,
-            records: dayRecords,
-            isToday: isToday,
-            isSelected: isSelected,
-            onTap: () => _loadSelectedDay(date),
-          );
-        },
+            return _buildDayCell(
+              date: date,
+              day: day,
+              records: dayRecords,
+              isToday: isToday,
+              isSelected: isSelected,
+              onTap: () => _loadSelectedDay(date),
+            );
+          },
         ),
       ),
     );
@@ -327,7 +372,8 @@ class _CalendarPageState extends State<CalendarPage> {
       final isToday = _selectedDate!.year == now.year &&
           _selectedDate!.month == now.month &&
           _selectedDate!.day == now.day;
-      final isFuture = _selectedDate!.isAfter(DateTime(now.year, now.month, now.day));
+      final isFuture =
+          _selectedDate!.isAfter(DateTime(now.year, now.month, now.day));
 
       return Container(
         height: 100,
@@ -360,7 +406,8 @@ class _CalendarPageState extends State<CalendarPage> {
                 label: Text(isToday ? '记录今天的心情' : '补记这天的心情'),
                 style: TextButton.styleFrom(
                   foregroundColor: AppTheme.primaryColor,
-                  textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  textStyle: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500),
                 ),
               ),
             ],
@@ -389,7 +436,8 @@ class _CalendarPageState extends State<CalendarPage> {
                   onPressed: () async {
                     final result = await Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => MoodRecordPage(initialDate: _selectedDate!),
+                        builder: (_) =>
+                            MoodRecordPage(initialDate: _selectedDate!),
                       ),
                     );
                     if (result == true) {
@@ -431,63 +479,65 @@ class _CalendarPageState extends State<CalendarPage> {
       onTap: () => _editRecord(record),
       onLongPress: () => _showRecordActions(record),
       child: Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppTheme.cardBgOf(context),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: moodColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(11),
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBgOf(context),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: moodColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Center(
+                child: Text(record.moodType.emoji,
+                    style: const TextStyle(fontSize: 24)),
+              ),
             ),
-            child: Center(
-              child: Text(record.moodType.emoji,
-                  style: const TextStyle(fontSize: 24)),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      record.moodType.label,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(width: 8),
-                    IntensityDots(
-                        intensity: record.intensity, color: moodColor, size: 6),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$hour:$minute',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppTheme.textHintOf(context),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        record.moodType.label,
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                ),
-                if (record.note != null && record.note!.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      IntensityDots(
+                          intensity: record.intensity,
+                          color: moodColor,
+                          size: 6),
+                    ],
+                  ),
                   const SizedBox(height: 4),
                   Text(
-                    record.note!,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                    '$hour:$minute',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textHintOf(context),
+                        ),
                   ),
+                  if (record.note != null && record.note!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      record.note!,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -560,7 +610,8 @@ class _CalendarPageState extends State<CalendarPage> {
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.delete_outline, color: Colors.red.shade400),
+                  leading:
+                      Icon(Icons.delete_outline, color: Colors.red.shade400),
                   title: Text('删除这条记录',
                       style: TextStyle(color: Colors.red.shade400)),
                   onTap: () async {
