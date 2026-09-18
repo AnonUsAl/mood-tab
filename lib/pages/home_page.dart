@@ -134,9 +134,7 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(width: 4),
             Text(
-              provider.hasCheckedInToday
-                  ? '已打卡'
-                  : '打卡',
+              provider.hasCheckedInToday ? '已打卡' : '打卡',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -243,10 +241,9 @@ class _HomePageState extends State<HomePage> {
             ? 0
             : recent3.map((r) => r.intensity).reduce((a, b) => a + b) /
                 recent3.length;
-        final earlierAvg = earlier4
-                .map((r) => r.intensity)
-                .reduce((a, b) => a + b) /
-            earlier4.length;
+        final earlierAvg =
+            earlier4.map((r) => r.intensity).reduce((a, b) => a + b) /
+                earlier4.length;
 
         final diff = recentAvg - earlierAvg;
         if (diff > 0.3) {
@@ -267,11 +264,11 @@ class _HomePageState extends State<HomePage> {
       MoodType.lonely,
       MoodType.tired,
     ];
-    final negativeCount = weekRecords
-        .where((r) => negativeMoods.contains(r.moodType))
-        .length;
-    final rainProb =
-        weekRecords.isEmpty ? 0 : (negativeCount / weekRecords.length * 100).round();
+    final negativeCount =
+        weekRecords.where((r) => negativeMoods.contains(r.moodType)).length;
+    final rainProb = weekRecords.isEmpty
+        ? 0
+        : (negativeCount / weekRecords.length * 100).round();
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -530,8 +527,7 @@ class _HomePageState extends State<HomePage> {
               color: const Color(0xFFA5D6A7),
               onTap: () {
                 Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => const MoodGardenPage()),
+                  MaterialPageRoute(builder: (_) => const MoodGardenPage()),
                 );
               },
             ),

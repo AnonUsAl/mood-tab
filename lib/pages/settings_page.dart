@@ -152,11 +152,24 @@ class _SettingsPageState extends State<SettingsPage> {
                   const SizedBox(height: 32),
                   // 版本信息
                   Center(
-                    child: Text(
-                      _version,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppTheme.textHintOf(context),
-                          ),
+                    child: Column(
+                      children: [
+                        Text(
+                          _version,
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.textHintOf(context),
+                                  ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'AnonUsAl 和 屿 99捏',
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.textHintOf(context),
+                                  ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -359,7 +372,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final oldFiles = await avatarDir.list().toList();
     for (final f in oldFiles) {
       if (f is File) {
-        try { await f.delete(); } catch (_) {}
+        try {
+          await f.delete();
+        } catch (_) {}
       }
     }
     final avatarFile = File(
@@ -484,7 +499,8 @@ class _SettingsPageState extends State<SettingsPage> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.access_time, color: AppTheme.primaryColor, size: 20),
+                    const Icon(Icons.access_time,
+                        color: AppTheme.primaryColor, size: 20),
                     const SizedBox(width: 8),
                     Text(
                       '提醒时间',
@@ -498,18 +514,20 @@ class _SettingsPageState extends State<SettingsPage> {
                   runSpacing: 8,
                   children: [
                     ..._reminderTimes.map((time) => ActionChip(
-                      label: Text(time),
-                      labelStyle: TextStyle(
-                        color: AppTheme.primaryColor,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      avatar: const Icon(Icons.schedule, size: 16),
-                      onPressed: () => _editReminderTime(time),
-                      side: BorderSide(color: AppTheme.primaryColor.withValues(alpha: 0.3)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    )),
+                          label: Text(time),
+                          labelStyle: TextStyle(
+                            color: AppTheme.primaryColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          avatar: const Icon(Icons.schedule, size: 16),
+                          onPressed: () => _editReminderTime(time),
+                          side: BorderSide(
+                              color:
+                                  AppTheme.primaryColor.withValues(alpha: 0.3)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        )),
                     if (_reminderTimes.length < 10)
                       ActionChip(
                         label: const Text('+ 添加时间'),
@@ -534,7 +552,8 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildReminderStyleSelector(
             label: '提醒方式',
             value: _dailyReminderStyle,
-            showPermissionWarning: _dailyReminderStyle == 'alarm' && !_hasExactAlarmPermission,
+            showPermissionWarning:
+                _dailyReminderStyle == 'alarm' && !_hasExactAlarmPermission,
             onChanged: (style) async {
               await _prefs.setDailyReminderStyle(style);
               setState(() => _dailyReminderStyle = style);
@@ -550,7 +569,8 @@ class _SettingsPageState extends State<SettingsPage> {
         _buildReminderStyleSelector(
           label: '用药提醒方式',
           value: _medicationReminderStyle,
-          showPermissionWarning: _medicationReminderStyle == 'alarm' && !_hasExactAlarmPermission,
+          showPermissionWarning:
+              _medicationReminderStyle == 'alarm' && !_hasExactAlarmPermission,
           onChanged: (style) async {
             await _prefs.setMedicationReminderStyle(style);
             setState(() => _medicationReminderStyle = style);
@@ -564,9 +584,7 @@ class _SettingsPageState extends State<SettingsPage> {
           icon: Icons.medication_outlined,
           iconColor: const Color(0xFFEF5350),
           title: '用药提醒',
-          subtitle: medCount > 0
-              ? '$medCount 种药物 · 点击管理'
-              : '添加药物，按时服药提醒',
+          subtitle: medCount > 0 ? '$medCount 种药物 · 点击管理' : '添加药物，按时服药提醒',
           isFirst: false,
           isLast: true,
           onTap: () {
@@ -594,7 +612,8 @@ class _SettingsPageState extends State<SettingsPage> {
       initialTime: initial,
     );
     if (picked != null) {
-      final timeStr = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+      final timeStr =
+          '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
       if (_reminderTimes.contains(timeStr)) {
         _showSnackBar('该时间已存在');
         return;
@@ -658,12 +677,14 @@ class _SettingsPageState extends State<SettingsPage> {
         initialTime: initial,
       );
       if (picked != null) {
-        final timeStr = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+        final timeStr =
+            '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
         if (timeStr != existingTime && _reminderTimes.contains(timeStr)) {
           _showSnackBar('该时间已存在');
           return;
         }
-        final newTimes = _reminderTimes.map((t) => t == existingTime ? timeStr : t).toList();
+        final newTimes =
+            _reminderTimes.map((t) => t == existingTime ? timeStr : t).toList();
         newTimes.sort();
         await _prefs.setDailyReminderTimes(newTimes);
         setState(() {
@@ -973,8 +994,8 @@ class _SettingsPageState extends State<SettingsPage> {
           isFirst: false,
           isLast: false,
           onTap: () {
-            Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const QisoulWebPage()));
+            Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const QisoulWebPage()));
           },
         ),
         _buildActionTile(
@@ -1153,7 +1174,8 @@ class _SettingsPageState extends State<SettingsPage> {
             width: double.infinity,
             child: SegmentedButton<String>(
               style: SegmentedButton.styleFrom(
-                selectedBackgroundColor: AppTheme.primaryColor.withValues(alpha: 0.15),
+                selectedBackgroundColor:
+                    AppTheme.primaryColor.withValues(alpha: 0.15),
                 selectedForegroundColor: AppTheme.primaryColor,
               ),
               segments: const [
@@ -1214,7 +1236,8 @@ class _SettingsPageState extends State<SettingsPage> {
         final tags = _escapeCsv(r.tags.join(';'));
         final diary = _escapeCsv(r.diary ?? '');
         final diaryImages = _escapeCsv(r.diaryImages.join(';'));
-        buffer.writeln('$date,$time,$mood,$intensity,$note,$tags,$diary,$diaryImages');
+        buffer.writeln(
+            '$date,$time,$mood,$intensity,$note,$tags,$diary,$diaryImages');
       }
 
       final dir = await getTemporaryDirectory();
@@ -1264,15 +1287,22 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: pw.Text(
                   '脑电波 情绪记录报告',
                   style: font != null
-                      ? pw.TextStyle(font: font, fontSize: 24, fontWeight: pw.FontWeight.bold)
-                      : const pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold),
+                      ? pw.TextStyle(
+                          font: font,
+                          fontSize: 24,
+                          fontWeight: pw.FontWeight.bold)
+                      : const pw.TextStyle(
+                          fontSize: 24, fontWeight: pw.FontWeight.bold),
                 ),
               ),
               pw.SizedBox(height: 20),
               if (provider.userName.isNotEmpty)
-                pw.Text('用户：${provider.userName}', style: font != null ? pw.TextStyle(font: font) : null),
-              pw.Text('导出时间：${DateTime.now().toString().substring(0, 19)}', style: font != null ? pw.TextStyle(font: font) : null),
-              pw.Text('记录总数：${records.length} 条', style: font != null ? pw.TextStyle(font: font) : null),
+                pw.Text('用户：${provider.userName}',
+                    style: font != null ? pw.TextStyle(font: font) : null),
+              pw.Text('导出时间：${DateTime.now().toString().substring(0, 19)}',
+                  style: font != null ? pw.TextStyle(font: font) : null),
+              pw.Text('记录总数：${records.length} 条',
+                  style: font != null ? pw.TextStyle(font: font) : null),
               pw.SizedBox(height: 20),
               pw.TableHelper.fromTextArray(
                 context: context,
@@ -1305,7 +1335,6 @@ class _SettingsPageState extends State<SettingsPage> {
       _showSnackBar('导出失败：$e');
     }
   }
-
 
   Future<ByteData?> _loadCjkFont() async {
     try {
@@ -1407,8 +1436,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('确定恢复',
-                  style: TextStyle(color: Colors.red)),
+              child: const Text('确定恢复', style: TextStyle(color: Colors.red)),
             ),
           ],
         ),

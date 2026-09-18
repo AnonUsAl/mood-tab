@@ -39,6 +39,14 @@ class AuthorInfoPage extends StatelessWidget {
                           color: AppTheme.textSecondaryOf(context),
                         ),
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'AnonUsAl 和 屿 99捏',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.primaryColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
                 ],
               ),
             ),
@@ -57,7 +65,7 @@ class AuthorInfoPage extends StatelessWidget {
                       icon: Icons.person_outline,
                       label: '作者',
                       value: 'AnonUsAl',
-                      subtitle: '高中生 · 计算机爱好者',
+                      subtitle: '高中生 · 计算机爱好者\nAnonUsAl和屿99捏！',
                     ),
                     const SizedBox(height: 16),
 
@@ -67,8 +75,8 @@ class AuthorInfoPage extends StatelessWidget {
                     _buildTextBlock(
                       context,
                       '对计算机怀有浓厚的兴趣，喜欢钻研与学习新事物。从最初跟随教程敲下第一行代码，'
-                          '到如今能够独立分析问题、查阅资料并动手解决，在实践中逐步建立起自己的技术节奏。'
-                          '课余时间热衷于开发个人项目、编写实用脚本，享受将一个想法逐步实现为可运行工具的过程。',
+                      '到如今能够独立分析问题、查阅资料并动手解决，在实践中逐步建立起自己的技术节奏。'
+                      '课余时间热衷于开发个人项目、编写实用脚本，享受将一个想法逐步实现为可运行工具的过程。',
                     ),
                     const SizedBox(height: 12),
                     Container(
@@ -116,26 +124,29 @@ class AuthorInfoPage extends StatelessWidget {
                         children: [
                           Text(
                             '作者患有双相情感障碍，这是生活的一部分，而非全部。',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  height: 1.7,
-                                ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      height: 1.7,
+                                    ),
                           ),
                           const SizedBox(height: 10),
                           Text(
                             '希望精神类疾病能被更多人所理解，而非被贴标签或回避。'
                             '生病不等于脆弱，也不应成为被区别对待的理由。',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  height: 1.7,
-                                  color: AppTheme.textSecondaryOf(context),
-                                ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      height: 1.7,
+                                      color: AppTheme.textSecondaryOf(context),
+                                    ),
                           ),
                           const SizedBox(height: 10),
                           Text(
                             '如果你也在经历类似的事情，不必感到孤单。愿意聊的话，欢迎随时联系。',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  height: 1.7,
-                                  color: AppTheme.textSecondaryOf(context),
-                                ),
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      height: 1.7,
+                                      color: AppTheme.textSecondaryOf(context),
+                                    ),
                           ),
                         ],
                       ),
@@ -171,7 +182,8 @@ class AuthorInfoPage extends StatelessWidget {
                       icon: Icons.groups_outlined,
                       label: 'ClouderyStudio（云术工作室）',
                       subtitle: '团队官方站点',
-                      onTap: () => _launchUrl(context, 'https://www.cldery.com/'),
+                      onTap: () =>
+                          _launchUrl(context, 'https://www.cldery.com/'),
                     ),
                     const SizedBox(height: 24),
 
