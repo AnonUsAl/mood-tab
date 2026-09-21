@@ -21,7 +21,7 @@ class AuthorInfoPage extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
               child: Column(
                 children: [
-                  Text(
+                  const Text(
                     '👋',
                     style: TextStyle(fontSize: 40),
                   ),
@@ -365,7 +365,7 @@ class AuthorInfoPage extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 12,
           color: AppTheme.primaryColor,
           fontWeight: FontWeight.w500,
@@ -426,7 +426,7 @@ class AuthorInfoPage extends StatelessWidget {
         title: Text(label, style: const TextStyle(fontSize: 13)),
         subtitle: Text(
           value,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 13,
             color: AppTheme.primaryColor,
             fontWeight: FontWeight.w500,
@@ -458,7 +458,7 @@ class AuthorInfoPage extends StatelessWidget {
         title: Text(label, style: const TextStyle(fontSize: 13)),
         subtitle: Text(
           value,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 13,
             color: AppTheme.primaryColor,
             fontWeight: FontWeight.w500,

@@ -515,7 +515,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   children: [
                     ..._reminderTimes.map((time) => ActionChip(
                           label: Text(time),
-                          labelStyle: TextStyle(
+                          labelStyle: const TextStyle(
                             color: AppTheme.primaryColor,
                             fontWeight: FontWeight.w500,
                           ),

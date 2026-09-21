@@ -16,9 +16,9 @@ extension ColorExtensions on Color {
 
     return Color.fromARGB(
       a,
-      red ?? (this.r * 255.0).round().clamp(0, 255),
-      green ?? (this.g * 255.0).round().clamp(0, 255),
-      blue ?? (this.b * 255.0).round().clamp(0, 255),
+      red ?? (r * 255.0).round().clamp(0, 255),
+      green ?? (g * 255.0).round().clamp(0, 255),
+      blue ?? (b * 255.0).round().clamp(0, 255),
     );
   }
 }

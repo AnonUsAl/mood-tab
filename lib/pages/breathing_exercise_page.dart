@@ -166,7 +166,7 @@ class _BreathingExercisePageState extends State<BreathingExercisePage> {
     await provider.addRecord(
       moodType: MoodType.calm,
       intensity: 3,
-      note: '完成呼吸练习 · ${_totalCycles}个循环',
+      note: '完成呼吸练习 · $_totalCycles个循环',
       tags: ['呼吸练习'],
     );
     if (mounted) {
@@ -321,7 +321,7 @@ class _BreathingExercisePageState extends State<BreathingExercisePage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    '第 ${_cycleCount + 1} / ${_totalCycles} 循环',
+                    '第 ${_cycleCount + 1} / $_totalCycles 循环',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: AppTheme.textSecondaryOf(context),
@@ -406,7 +406,7 @@ class _BreathingExercisePageState extends State<BreathingExercisePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              '你完成了 ${_totalCycles} 个呼吸循环',
+              '你完成了 $_totalCycles 个呼吸循环',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: AppTheme.textSecondaryOf(context),
                   ),

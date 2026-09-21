@@ -11,7 +11,6 @@ import 'diary_page.dart';
 import 'history_page.dart';
 import 'breathing_exercise_page.dart';
 import 'mood_garden_page.dart';
-import 'urge_log_page.dart';
 import 'conflict_care_page.dart';
 
 /// 首页 - 今日情绪概览

@@ -21,7 +21,7 @@ class PrivacyPolicyPage extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
               child: Column(
                 children: [
-                  Text(
+                  const Text(
                     '💊',
                     style: TextStyle(fontSize: 48),
                   ),

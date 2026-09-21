@@ -64,11 +64,11 @@ class _AboutPageState extends State<AboutPage> {
           if (_isLoading)
             Container(
               color: const Color(0xFF0A0D12),
-              child: Center(
+              child: const Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const SizedBox(
+                    SizedBox(
                       width: 32,
                       height: 32,
                       child: CircularProgressIndicator(
@@ -76,11 +76,11 @@ class _AboutPageState extends State<AboutPage> {
                         color: Color(0xFF8BE9C1),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: 16),
                     Text(
                       '正在加载...',
                       style: TextStyle(
-                        color: const Color(0xFF5C6B7A),
+                        color: Color(0xFF5C6B7A),
                         fontSize: 14,
                       ),
                     ),

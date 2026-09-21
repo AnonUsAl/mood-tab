@@ -260,7 +260,7 @@ class _UrgeLogPageState extends State<UrgeLogPage> {
               subtitle: const Text('用于自我觉察，非评判'),
               value: _actedOn,
               onChanged: (value) => setState(() => _actedOn = value),
-              activeColor: AppTheme.primaryColor,
+              activeThumbColor: AppTheme.primaryColor,
             ),
             TextField(
               controller: _triggerController,
@@ -438,7 +438,7 @@ class _UrgeLogPageState extends State<UrgeLogPage> {
             ),
             Text(
               '$_intensity/5',
-              style: TextStyle(
+              style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 color: AppTheme.primaryColor,
               ),
@@ -456,9 +456,9 @@ class _UrgeLogPageState extends State<UrgeLogPage> {
           onChanged: (value) => setState(() => _intensity = value.round()),
         ),
         const SizedBox(height: 4),
-        Row(
+        const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: const [
+          children: [
             Text('微弱', style: TextStyle(fontSize: 12)),
             Text('轻微', style: TextStyle(fontSize: 12)),
             Text('中等', style: TextStyle(fontSize: 12)),

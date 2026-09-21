@@ -107,7 +107,7 @@ class _CalendarPageState extends State<CalendarPage> {
                 children: [
                   _buildAnimatedCalendarGrid(),
                   if (_isLoading)
-                    Positioned.fill(
+                    const Positioned.fill(
                       child: IgnorePointer(
                         child: ColoredBox(
                           color: Colors.transparent,

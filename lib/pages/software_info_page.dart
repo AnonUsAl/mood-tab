@@ -119,7 +119,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
           width: 2,
         ),
       ),
-      child: Center(
+      child: const Center(
         child: Icon(
           Icons.favorite_rounded,
           size: 40,
@@ -527,7 +527,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
                           color: AppTheme.primaryColor.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(
+                        child: const Text(
                           '当前版本',
                           style: TextStyle(
                             fontSize: 11,
