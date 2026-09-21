@@ -572,7 +572,7 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
       ('框架', 'Flutter ${_packageInfo != null ? "" : ""}· Dart'),
       ('存储', 'SQLite 本地数据库 · SharedPreferences'),
       ('隐私', '100% 本地 · 零网络上传 · 无第三方统计'),
-      ('平台', 'Android · iOS · macOS · Web'),
+      ('平台', 'Android · iOS · macOS · Windows · Linux · Web'),
       ('许可', 'MIT License · 开源免费'),
       ('备注', 'AnonUsAl 和 屿 99捏'),
     ];

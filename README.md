@@ -96,7 +96,7 @@ lib/
 
 - Flutter SDK >= 3.5.0
 - Dart SDK >= 3.5.0
-- Android Studio 但是本人实测之后发现腾讯应用宝出奇的好 / Xcode（如需运行模拟器）
+- Android Studio / Xcode / Visual Studio（如需运行模拟器）
 
 ### 运行步骤
 
@@ -115,7 +115,7 @@ flutter pub get
 flutter run
 ```
 
-> **说明**：仓库中只包含 `lib/` 源码和 `pubspec.yaml`，平台相关文件（android/ios/macos/windows/linux）需通过 `flutter create .` 自动生成。
+> **说明**：仓库中只包含 `lib/` 源码和 `pubspec.yaml`，平台相关文件（android/ios/macos/windows/linux/web）需通过 `flutter create .` 自动生成。
 
 ### 构建发布
 
@@ -125,6 +125,9 @@ flutter build apk
 
 # iOS
 flutter build ios
+
+# Windows
+flutter build windows
 
 # macOS
 flutter build macos
