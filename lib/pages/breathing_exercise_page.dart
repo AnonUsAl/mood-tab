@@ -174,7 +174,8 @@ class _BreathingExercisePageState extends State<BreathingExercisePage> {
         SnackBar(
           content: const Text('已记录：呼吸练习 · 平静 😌'),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       );
       Navigator.of(context).pop();
@@ -196,22 +197,44 @@ class _BreathingExercisePageState extends State<BreathingExercisePage> {
       body: SafeArea(
         child: _isCompleted
             ? _buildCompletedView()
-            : Column(
-                children: [
-                  const Spacer(flex: 1),
-                  // 核心呼吸动画
-                  _buildBreathAnimation(phaseColor),
-                  const Spacer(flex: 1),
-                  // 阶段指示器
-                  if (_isRunning) _buildPhaseIndicator(phaseColor),
-                  // 进度 & 计数
-                  if (_isRunning) _buildProgressInfo(),
-                  // 按钮
-                  _buildControls(),
-                  const SizedBox(height: 32),
-                ],
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  // 这套布局是按手机竖屏设计的，需要的竖向空间是固定的。
+                  // 桌面窗口（或横屏）比它还矮时不再硬挤，改为可滚动，
+                  // 否则下方按钮会被裁切掉。
+                  if (constraints.maxHeight >= _minLayoutHeight) {
+                    return _buildExerciseBody(phaseColor);
+                  }
+                  return SingleChildScrollView(
+                    child: SizedBox(
+                      height: _minLayoutHeight,
+                      child: _buildExerciseBody(phaseColor),
+                    ),
+                  );
+                },
               ),
       ),
+    );
+  }
+
+  /// 呼吸练习主布局所需的最小高度
+  static const double _minLayoutHeight = 620;
+
+  Widget _buildExerciseBody(Color phaseColor) {
+    return Column(
+      children: [
+        const Spacer(flex: 1),
+        // 核心呼吸动画
+        _buildBreathAnimation(phaseColor),
+        const Spacer(flex: 1),
+        // 阶段指示器
+        if (_isRunning) _buildPhaseIndicator(phaseColor),
+        // 进度 & 计数
+        if (_isRunning) _buildProgressInfo(),
+        // 按钮
+        _buildControls(),
+        const SizedBox(height: 32),
+      ],
     );
   }
 
@@ -359,8 +382,7 @@ class _BreathingExercisePageState extends State<BreathingExercisePage> {
                         ),
                     ],
                   ),
-                if (!_isRunning && !_isCompleted)
-                  const SizedBox(height: 16),
+                if (!_isRunning && !_isCompleted) const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -385,59 +407,64 @@ class _BreathingExercisePageState extends State<BreathingExercisePage> {
 
   /// 完成后的庆祝视图
   Widget _buildCompletedView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 完成动画
-            const Text(
-              '🌸',
-              style: TextStyle(fontSize: 64),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              '练习完成！',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: const Color(0xFF8BE9C1),
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '你完成了 $_totalCycles 个呼吸循环',
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: AppTheme.textSecondaryOf(context),
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '方寸之间，心归宁静',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.textHintOf(context),
-                  ),
-            ),
-            const SizedBox(height: 40),
-            // 记录按钮
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _recordCalm,
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('记录这次练习 · 😌 平静'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF8BE9C1),
-                  foregroundColor: Colors.white,
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 完成动画
+                const Text(
+                  '🌸',
+                  style: TextStyle(fontSize: 64),
                 ),
-              ),
+                const SizedBox(height: 24),
+                Text(
+                  '练习完成！',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        color: const Color(0xFF8BE9C1),
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '你完成了 $_totalCycles 个呼吸循环',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppTheme.textSecondaryOf(context),
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '方寸之间，心归宁静',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppTheme.textHintOf(context),
+                      ),
+                ),
+                const SizedBox(height: 40),
+                // 记录按钮
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _recordCalm,
+                    icon: const Icon(Icons.check_circle_outline),
+                    label: const Text('记录这次练习 · 😌 平静'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF8BE9C1),
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('返回'),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('返回'),
-            ),
-          ],
+          ),
         ),
       ),
     );

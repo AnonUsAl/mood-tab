@@ -179,6 +179,22 @@ Win32Window::MessageHandler(HWND hwnd,
                             WPARAM const wparam,
                             LPARAM const lparam) noexcept {
   switch (message) {
+    // The UI targets a portrait phone layout; dragging the window smaller
+    // than this pushes content off screen, so enforce a minimum size.
+    // Values are in logical pixels and scaled by the current monitor DPI.
+    case WM_GETMINMAXINFO: {
+      constexpr int kMinWindowWidth = 400;
+      constexpr int kMinWindowHeight = 560;
+
+      HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+      const double dpi_scale = FlutterDesktopGetDpiForMonitor(monitor) / 96.0;
+
+      auto* min_max_info = reinterpret_cast<MINMAXINFO*>(lparam);
+      min_max_info->ptMinTrackSize.x = Scale(kMinWindowWidth, dpi_scale);
+      min_max_info->ptMinTrackSize.y = Scale(kMinWindowHeight, dpi_scale);
+      return 0;
+    }
+
     case WM_DESTROY:
       window_handle_ = nullptr;
       Destroy();

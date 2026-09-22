@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 export 'color_extensions.dart';
 
@@ -126,6 +127,41 @@ class AppTheme {
 
   static ThemeColorScheme get currentScheme => colorSchemes[_colorIndex];
 
+  // ==================== 字体 ====================
+  // 桌面端（尤其 Windows）系统默认字体不带中文字形，回退结果不可控，
+  // 会出现字体突变、字重丢失、文字被裁切等排版问题。
+  // 这里按平台显式指定中文字体，并给出一条回退链兜底。
+
+  /// 当前平台优先使用的中文字体族。
+  /// 返回 null 时使用系统默认字体（Android / iOS / Linux 表现良好）。
+  /// 注：Web 上 defaultTargetPlatform 会返回浏览器所在的系统，同样适用。
+  static String? get platformFontFamily {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.windows:
+        return 'Microsoft YaHei UI';
+      case TargetPlatform.macOS:
+        return 'PingFang SC';
+      default:
+        return null;
+    }
+  }
+
+  /// 字体回退链：前面的字体缺少某个字形时依次往后找，尽量避免出现方块
+  static const List<String> fontFamilyFallback = [
+    'Microsoft YaHei UI',
+    'Microsoft YaHei',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Noto Sans CJK SC',
+    'Noto Sans SC',
+    'Source Han Sans SC',
+    'WenQuanYi Micro Hei',
+    'Segoe UI',
+    'Roboto',
+    'Segoe UI Emoji',
+    'Noto Color Emoji',
+  ];
+
   // ==================== Context 感知主题色 ====================
 
   /// 当前主题主色
@@ -152,7 +188,8 @@ class AppTheme {
         brightness: Brightness.light,
       ),
       scaffoldBackgroundColor: scaffoldBg,
-      fontFamily: null, // 使用系统默认字体
+      fontFamily: platformFontFamily,
+      fontFamilyFallback: fontFamilyFallback,
 
       // AppBar
       appBarTheme: const AppBarTheme(
@@ -258,7 +295,8 @@ class AppTheme {
         brightness: Brightness.dark,
       ),
       scaffoldBackgroundColor: darkScaffoldBg,
-      fontFamily: null,
+      fontFamily: platformFontFamily,
+      fontFamilyFallback: fontFamilyFallback,
       appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,

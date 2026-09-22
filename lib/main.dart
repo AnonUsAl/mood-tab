@@ -13,6 +13,7 @@ import 'providers/mood_provider.dart';
 import 'services/preferences_service.dart';
 import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
+import 'widgets/desktop_viewport.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +40,11 @@ class MoodTabApp extends StatelessWidget {
                 : provider.themeMode == 'system'
                     ? ThemeMode.system
                     : ThemeMode.light,
+            // 桌面端（Windows / Linux / macOS）把界面收进手机宽度的画布并居中，
+            // 避免宽屏窗口把按竖屏设计的布局横向摊开。移动端 / Web 不受影响。
+            builder: (context, child) => DesktopViewport(
+              child: child ?? const SizedBox.shrink(),
+            ),
             home: const _AppEntrance(),
           );
         },

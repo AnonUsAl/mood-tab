@@ -46,6 +46,7 @@ class MoodProvider extends ChangeNotifier {
   List<MoodRecord> get diaryRecords => _diaryRecords;
   bool get isLoading => _isLoading;
   String get themeMode => _themeMode;
+
   /// 当 themeMode 为 'system' 时，isDarkMode 无法独立判断系统暗色状态，
   /// 应改用 Theme.of(context).brightness == Brightness.dark。
   bool get isDarkMode => _themeMode == 'dark';
@@ -106,8 +107,11 @@ class MoodProvider extends ChangeNotifier {
   /// 从 [_allRecords] 派生今日记录与日记记录（内存计算，无数据库查询）。
   void _recomputeDerivedRecords() {
     final now = DateTime.now();
-    final todayStart =
-        DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+    final todayStart = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).millisecondsSinceEpoch;
     final todayEnd = todayStart + const Duration(days: 1).inMilliseconds;
     _todayRecords = _allRecords.where((r) {
       final ts = r.createdAt.millisecondsSinceEpoch;
@@ -221,8 +225,7 @@ class MoodProvider extends ChangeNotifier {
 
   /// 删除自定义标签（按 label）
   Future<void> deleteCustomTag(String label) async {
-    final updated =
-        MoodTags.customTags.where((t) => t.label != label).toList();
+    final updated = MoodTags.customTags.where((t) => t.label != label).toList();
     await _prefs.setCustomTags(updated);
     MoodTags.setCustomTags(updated);
     notifyListeners();
@@ -288,8 +291,11 @@ class MoodProvider extends ChangeNotifier {
   /// 获取最近 N 天的记录
   Future<List<MoodRecord>> getRecentRecords(int days) async {
     final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day)
-        .subtract(Duration(days: days - 1));
+    final start = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).subtract(Duration(days: days - 1));
     final end = start.add(Duration(days: days));
     return _dbService.getRecordsBetween(start, end);
   }
@@ -321,6 +327,17 @@ class MoodProvider extends ChangeNotifier {
   Future<void> rescheduleMedicationReminders() async {
     await _notifications.cancelAllMedicationReminders();
 
+    // Windows 不支持循环提醒，通知服务会把「每天」展开成未来若干天的一次性
+    // 提醒。先数一遍启用中的提醒总条数，才能把展开后的 toast 数量
+    // 压在 Windows 的计划通知上限内（见 windowsHorizonFor）。
+    int slotCount = 0;
+    for (int medIndex = 0; medIndex < _medications.length; medIndex++) {
+      final med = _medications[medIndex];
+      if (!med.enabled) continue;
+      slotCount += med.times.length.clamp(0, Medication.maxTimes);
+    }
+    final windowsHorizon = NotificationService.windowsHorizonFor(slotCount);
+
     // 为每个启用的药物设置提醒
     for (int medIndex = 0; medIndex < _medications.length; medIndex++) {
       final med = _medications[medIndex];
@@ -338,6 +355,7 @@ class MoodProvider extends ChangeNotifier {
           dosage: med.dosage,
           hour: hour,
           minute: minute,
+          windowsHorizonDays: windowsHorizon,
         );
       }
     }
@@ -379,9 +397,7 @@ class MoodProvider extends ChangeNotifier {
   /// 切换药物启用状态
   Future<void> toggleMedicationEnabled(int id) async {
     _medications = _medications
-        .map((m) => m.id == id
-            ? m.copyWith(enabled: !m.enabled)
-            : m)
+        .map((m) => m.id == id ? m.copyWith(enabled: !m.enabled) : m)
         .toList();
     await _prefs.setMedications(_medications);
     notifyListeners();

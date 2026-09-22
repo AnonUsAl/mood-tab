@@ -26,7 +26,40 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
-  Win32Window::Size size(1280, 720);
+
+  // Default window size in logical pixels. The UI is designed for a
+  // portrait phone layout; on desktop the app is centered inside a
+  // 480pt-wide canvas, so a taller window gives that canvas room.
+  //
+  // The size is then clamped to the primary monitor's work area: on a
+  // high-DPI small screen a 1280x720 logical window gets scaled up larger
+  // than the screen itself, which clips the bottom of the UI behind the
+  // taskbar.
+  unsigned int window_width = 1100;
+  unsigned int window_height = 820;
+
+  RECT work_area{};
+  if (::SystemParametersInfo(SPI_GETWORKAREA, 0, &work_area, 0)) {
+    HDC screen_dc = ::GetDC(nullptr);
+    const int dpi = screen_dc ? ::GetDeviceCaps(screen_dc, LOGPIXELSX) : 96;
+    if (screen_dc) {
+      ::ReleaseDC(nullptr, screen_dc);
+    }
+    const double dpi_scale = dpi / 96.0;
+    const auto available_width =
+        static_cast<unsigned int>((work_area.right - work_area.left) / dpi_scale);
+    const auto available_height =
+        static_cast<unsigned int>((work_area.bottom - work_area.top) / dpi_scale);
+
+    if (window_width > available_width) {
+      window_width = available_width;
+    }
+    if (window_height > available_height) {
+      window_height = available_height;
+    }
+  }
+
+  Win32Window::Size size(window_width, window_height);
   if (!window.Create(L"mood_tab", origin, size)) {
     return EXIT_FAILURE;
   }

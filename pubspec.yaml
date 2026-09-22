@@ -4,7 +4,8 @@ publish_to: 'none'
 version: 3.0.16+47
 
 environment:
-  sdk: ^3.5.0
+  # flutter_local_notifications 22.x 与 timezone 0.10+ 都要求 Dart ^3.10.0
+  sdk: ^3.10.0
 
 dependencies:
   flutter:
@@ -15,6 +16,8 @@ dependencies:
 
   # 本地数据库
   sqflite: ^2.4.1
+  # 桌面端（Windows / Linux）没有 sqflite 实现，需要走 FFI 工厂
+  sqflite_common_ffi: ^2.4.3
   path_provider: ^2.1.5
   path: ^1.9.0
 
@@ -22,8 +25,14 @@ dependencies:
   fl_chart: ^0.69.2
 
   # 本地通知（提醒功能）
-  flutter_local_notifications: ^18.0.1
-  timezone: ^0.9.4
+  # 19.0.0 起才实现 Windows（Toast Notifications），18.x 在 Windows 上会抛
+  # MissingPluginException，所以桌面端要真正能提醒就必须用 19+。
+  flutter_local_notifications: ^22.3.1
+  # Windows 的原生实现是独立的 FFI 插件。它本来就是主包的传递依赖，
+  # 这里显式声明是为了确保 Windows 构建时一定完成 FFI 插件注册。
+  flutter_local_notifications_windows: ^3.1.1
+  # 22.x 的硬性要求是 ^0.11.0（旧版会解析冲突）
+  timezone: ^0.11.1
 
   # 生物识别（隐私锁）
   local_auth: ^2.3.0

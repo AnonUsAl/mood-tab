@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../theme/app_theme.dart';
+import '../widgets/webview_support.dart';
 
 /// 栖所页面 - WebView 套壳加载 qisoul.cldery.com
 /// 沉浸式设计：透明 AppBar，浮动半透明按钮，让网页内容占主导
+/// Windows / Linux 上没有 WebView 实现，进页面直接调起系统浏览器
 class QisoulWebPage extends StatefulWidget {
   const QisoulWebPage({super.key});
 
@@ -12,39 +14,46 @@ class QisoulWebPage extends StatefulWidget {
 }
 
 class _QisoulWebPageState extends State<QisoulWebPage> {
-  late final WebViewController _controller;
+  static const _qisoulUrl = 'https://qisoul.cldery.com/';
+
+  WebViewController? _controller;
   bool _isLoading = true;
   bool _canGoBack = false;
 
   @override
   void initState() {
     super.initState();
+    if (!isEmbeddedWebViewSupported) return;
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFFF8F6FF))
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) async {
+            if (!mounted) return;
             setState(() {
               _isLoading = false;
             });
-            final canBack = await _controller.canGoBack();
+            final canBack = await _controller!.canGoBack();
             if (mounted) {
               setState(() => _canGoBack = canBack);
             }
           },
           onWebResourceError: (error) {
+            if (!mounted) return;
             setState(() {
               _isLoading = false;
             });
           },
         ),
       )
-      ..loadRequest(Uri.parse('https://qisoul.cldery.com/'));
+      ..loadRequest(Uri.parse(_qisoulUrl));
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = _controller;
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -56,8 +65,8 @@ class _QisoulWebPageState extends State<QisoulWebPage> {
           child: _buildFloatingButton(
             icon: Icons.arrow_back_rounded,
             onTap: () {
-              if (_canGoBack) {
-                _controller.goBack();
+              if (controller != null && _canGoBack) {
+                controller.goBack();
               } else {
                 Navigator.of(context).pop();
               }
@@ -65,50 +74,68 @@ class _QisoulWebPageState extends State<QisoulWebPage> {
           ),
         ),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: _buildFloatingButton(
-              icon: Icons.refresh_rounded,
-              onTap: () {
-                setState(() => _isLoading = true);
-                _controller.reload();
-              },
-            ),
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          WebViewWidget(controller: _controller),
-          if (_isLoading)
-            Container(
-              color: AppTheme.scaffoldBgOf(context),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 3,
-                        color: AppTheme.primaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      '正在进入栖所...',
-                      style: TextStyle(
-                        color: AppTheme.textSecondaryOf(context),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
+          if (controller != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _buildFloatingButton(
+                icon: Icons.refresh_rounded,
+                onTap: () {
+                  setState(() => _isLoading = true);
+                  controller.reload();
+                },
               ),
             ),
         ],
       ),
+      body: controller == null
+          ? const Padding(
+              padding: EdgeInsets.only(top: 64),
+              child: ExternalBrowserFallback(
+                pageTitle: '栖所',
+                autoOpenIndex: 0,
+                message: '桌面版无法内嵌网页，已用系统浏览器打开栖所。',
+                targets: [
+                  ExternalOpenTarget(
+                    label: '进入栖所',
+                    description: 'qisoul.cldery.com',
+                    icon: Icons.nightlight_outlined,
+                    url: _qisoulUrl,
+                  ),
+                ],
+              ),
+            )
+          : Stack(
+              children: [
+                WebViewWidget(controller: controller),
+                if (_isLoading)
+                  Container(
+                    color: AppTheme.scaffoldBgOf(context),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 3,
+                              color: AppTheme.primaryColor,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            '正在进入栖所...',
+                            style: TextStyle(
+                              color: AppTheme.textSecondaryOf(context),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 

@@ -3,6 +3,9 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import '../models/mood_record.dart';
 import '../models/urge_log.dart';
+// 条件导入：原生平台用 FFI 实现（Windows / Linux 必需），Web 用空实现。
+import 'database_factory_stub.dart'
+    if (dart.library.io) 'database_factory_io.dart';
 
 /// 本地 SQLite 数据库服务
 /// 所有数据 100% 存储在设备本地，绝不上传云端
@@ -20,6 +23,9 @@ class DatabaseService {
   }
 
   Future<Database> _initDatabase() async {
+    // Windows / Linux 上 sqflite 没有原生实现，必须先切到 FFI 工厂；
+    // 其他平台这里是空操作。
+    initDesktopDatabaseFactory();
     final documentsDir = await getApplicationDocumentsDirectory();
     final dbPath = p.join(documentsDir.path, 'mood_tab.db');
     return await openDatabase(
@@ -275,7 +281,8 @@ class DatabaseService {
     final now = DateTime.now();
 
     for (int i = 0; i < 365; i++) {
-      final checkDate = DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
+      final checkDate =
+          DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
       final dateStr = _formatDateKey(checkDate);
       if (dates.contains(dateStr)) {
         streak++;
