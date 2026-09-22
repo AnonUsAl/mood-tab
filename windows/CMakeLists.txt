@@ -31,6 +31,10 @@ set(CMAKE_CXX_FLAGS_PROFILE "${CMAKE_CXX_FLAGS_RELEASE}")
 
 # Use Unicode for all projects.
 add_definitions(-DUNICODE -D_UNICODE)
+if(MSVC)
+  add_compile_options(/wd4819)
+  add_compile_options(/FS)
+endif()
 
 # Compilation settings that should be applied to most targets.
 #
@@ -107,7 +111,5 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
-  
-if(MSVC)
-  add_compile_options(/wd4819)
-endif()
+
+
