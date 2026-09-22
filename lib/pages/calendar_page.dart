@@ -19,27 +19,13 @@ class CalendarPage extends StatefulWidget {
 class _CalendarPageState extends State<CalendarPage> {
   DateTime _focusedMonth = DateTime.now();
   DateTime? _selectedDate;
-  List<MoodRecord> _selectedDayRecords = [];
-  Map<String, List<MoodRecord>> _monthRecords = {};
-  bool _isLoading = false;
-  MoodProvider? _providerRef;
   int _monthChangeDirection = 1;
 
-  /// 加载序号：每次发起加载 +1，回来时序号对不上就丢弃结果。
-  /// 快速连点月份箭头时，旧月份的请求可能晚于新月份的请求返回，
-  /// 没有这个保护会把界面覆盖成旧月份的数据。
-  int _loadToken = 0;
-
-  /// 是否已经成功加载过一次。首次加载才显示整块转圈，
-  /// 之后 provider 变化触发的静默刷新不再闪 loading。
-  bool _hasLoadedOnce = false;
-
-  /// 最近一次加载是否失败（用于给出重试入口，而不是一直转圈）。
-  bool _loadFailed = false;
-
-  /// provider 变化已经排队了一次重载，避免同一帧内多个通知
-  /// （loadAllData 会连续 notifyListeners 数次）触发多次全量查询。
-  bool _reloadScheduled = false;
+  // 本月记录的分组缓存：provider.allRecords 换了对象、或者切了月份才重算。
+  List<MoodRecord>? _cachedSource;
+  int? _cachedYear;
+  int? _cachedMonth;
+  Map<String, List<MoodRecord>> _cachedGrouped = const {};
 
   @override
   void initState() {
@@ -47,96 +33,47 @@ class _CalendarPageState extends State<CalendarPage> {
     // 自动选中今天，使首次打开日历时直接显示当天记录
     final now = DateTime.now();
     _selectedDate = DateTime(now.year, now.month, now.day);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _providerRef = context.read<MoodProvider>();
-      _providerRef!.addListener(_onProviderChanged);
-      _loadMonthData();
-    });
-  }
-
-  @override
-  void dispose() {
-    _providerRef?.removeListener(_onProviderChanged);
-    super.dispose();
-  }
-
-  /// provider 数据变化 → 合并到下一帧只重载一次。
-  void _onProviderChanged() {
-    if (_reloadScheduled) return;
-    _reloadScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _reloadScheduled = false;
-      if (mounted) _loadMonthData();
-    });
   }
 
   /// 分组 / 查表用的日期键，必须与 `_buildCalendarGrid` 里保持一致。
   static String _dayKey(DateTime date) =>
       '${date.year}-${date.month}-${date.day}';
 
-  /// 加载当前聚焦月份的记录。
+  /// 按天分组当前聚焦月份的记录。
   ///
-  /// 三个要点：
-  /// 1. 任何异常都要把 loading 收掉，否则 spinner 会永远转下去；
-  /// 2. 只有序号最新的那次加载才允许写状态（防乱序覆盖）；
-  /// 3. 每次 await 回来都要检查 mounted，避免在已销毁的 State 上 setState。
-  Future<void> _loadMonthData() async {
-    final token = ++_loadToken;
-
-    if (!_hasLoadedOnce) {
-      setState(() {
-        _isLoading = true;
-        _loadFailed = false;
-      });
+  /// 这里**不再按日期范围查库**，而是直接从 `provider.allRecords` 内存筛选：
+  ///
+  /// - provider 启动时已经用 `getAllRecords()`（无 WHERE 条件）把所有记录读进
+  ///   内存，日历再往返一次数据库是多余的；
+  /// - 那条带 `whereArgs` 的范围查询是本页唯一的异步依赖，一旦它卡住或抛异常，
+  ///   页面就会一直转圈、月份数据永远出不来。改走内存筛选后本页不再有异步加载，
+  ///   从结构上消除「月份数据一直无法加载」。
+  Map<String, List<MoodRecord>> _groupedMonths(MoodProvider provider) {
+    final all = provider.allRecords;
+    if (identical(_cachedSource, all) &&
+        _cachedYear == _focusedMonth.year &&
+        _cachedMonth == _focusedMonth.month) {
+      return _cachedGrouped;
     }
 
-    try {
-      final provider = context.read<MoodProvider>();
-      final start = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
-      final end = DateTime(
-        _focusedMonth.year,
-        _focusedMonth.month + 1,
-        0,
-        23,
-        59,
-        59,
-      );
-      final records = await provider.getRecordsBetween(start, end);
-
-      if (!mounted || token != _loadToken) return;
-
-      final grouped = <String, List<MoodRecord>>{};
-      for (final r in records) {
-        grouped.putIfAbsent(_dayKey(r.createdAt), () => []).add(r);
+    final grouped = <String, List<MoodRecord>>{};
+    for (final r in all) {
+      if (r.createdAt.year != _focusedMonth.year ||
+          r.createdAt.month != _focusedMonth.month) {
+        continue;
       }
-
-      setState(() {
-        _monthRecords = grouped;
-        _isLoading = false;
-        _loadFailed = false;
-        _hasLoadedOnce = true;
-        if (_selectedDate != null) {
-          _selectedDayRecords = grouped[_dayKey(_selectedDate!)] ?? [];
-        }
-      });
-    } catch (e, st) {
-      // 数据库异常、查询卡死被取消等情况都在这里兜住：
-      // 必须收掉 loading，并留下可重试的痕迹。
-      debugPrint('CalendarPage._loadMonthData failed: $e\n$st');
-      if (!mounted || token != _loadToken) return;
-      setState(() {
-        _isLoading = false;
-        _loadFailed = true;
-      });
+      grouped.putIfAbsent(_dayKey(r.createdAt), () => []).add(r);
     }
+
+    _cachedSource = all;
+    _cachedYear = _focusedMonth.year;
+    _cachedMonth = _focusedMonth.month;
+    _cachedGrouped = grouped;
+    return grouped;
   }
 
   void _loadSelectedDay(DateTime date) {
-    setState(() {
-      _selectedDate = date;
-      _selectedDayRecords = _monthRecords[_dayKey(date)] ?? [];
-    });
+    setState(() => _selectedDate = date);
   }
 
   void _changeMonth(int delta) {
@@ -148,13 +85,28 @@ class _CalendarPageState extends State<CalendarPage> {
         1,
       );
       _selectedDate = null;
-      _selectedDayRecords = [];
     });
-    _loadMonthData();
   }
 
   @override
   Widget build(BuildContext context) {
+    // 直接监听 provider：记录增删改后 provider 会 notify，日历自动跟着刷新，
+    // 不需要再自己注册 listener + 手动重载一轮数据。
+    final provider = context.watch<MoodProvider>();
+    final monthRecords = _groupedMonths(provider);
+
+    // 仅「首次启动、provider 还在读库」时转圈；读完就一律渲染日历本体，
+    // 不再存在「页面自己加载失败」这种中间态。
+    final bool initialLoading =
+        provider.isLoading && provider.allRecords.isEmpty;
+
+    final String? selectedKey = _selectedDate == null
+        ? null
+        : _dayKey(_selectedDate!);
+    final List<MoodRecord> selectedDayRecords = selectedKey == null
+        ? const <MoodRecord>[]
+        : (monthRecords[selectedKey] ?? const <MoodRecord>[]);
+
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -164,8 +116,8 @@ class _CalendarPageState extends State<CalendarPage> {
             Expanded(
               child: Stack(
                 children: [
-                  _buildAnimatedCalendarGrid(),
-                  if (_isLoading)
+                  _buildAnimatedCalendarGrid(monthRecords),
+                  if (initialLoading)
                     const Positioned.fill(
                       child: IgnorePointer(
                         child: ColoredBox(
@@ -178,26 +130,20 @@ class _CalendarPageState extends State<CalendarPage> {
                         ),
                       ),
                     ),
-                  // 加载失败时给出明确出口，避免一直显示转圈让人干等。
-                  // 只占底部一条，不遮挡日历本身的点击。
-                  if (!_isLoading && _loadFailed)
-                    Positioned(
-                      left: 0,
-                      right: 0,
-                      bottom: 8,
-                      child: Center(child: _buildLoadFailedBanner()),
-                    ),
                 ],
               ),
             ),
-            if (_selectedDate != null) _buildSelectedDayDetail(),
+            if (_selectedDate != null)
+              _buildSelectedDayDetail(selectedDayRecords),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAnimatedCalendarGrid() {
+  Widget _buildAnimatedCalendarGrid(
+    Map<String, List<MoodRecord>> monthRecords,
+  ) {
     final monthKey = '${_focusedMonth.year}-${_focusedMonth.month}';
 
     return AnimatedSwitcher(
@@ -218,7 +164,10 @@ class _CalendarPageState extends State<CalendarPage> {
           child: child,
         );
       },
-      child: KeyedSubtree(key: ValueKey(monthKey), child: _buildCalendarGrid()),
+      child: KeyedSubtree(
+        key: ValueKey(monthKey),
+        child: _buildCalendarGrid(monthRecords),
+      ),
     );
   }
 
@@ -288,62 +237,7 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  /// 月份数据加载失败时的提示条（含重试按钮）。
-  Widget _buildLoadFailedBanner() {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppTheme.cardBgOf(context),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline,
-              size: 16,
-              color: AppTheme.textSecondaryOf(context),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '这个月的数据没加载出来',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppTheme.textSecondaryOf(context),
-              ),
-            ),
-            const SizedBox(width: 4),
-            TextButton(
-              onPressed: _loadMonthData,
-              style: TextButton.styleFrom(
-                foregroundColor: AppTheme.primaryColor,
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: const Size(0, 32),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                textStyle: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              child: const Text('重试'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCalendarGrid() {
+  Widget _buildCalendarGrid(Map<String, List<MoodRecord>> monthRecords) {
     final firstOfMonth = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
     final daysInMonth = DateTime(
       _focusedMonth.year,
@@ -429,7 +323,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   _focusedMonth.month,
                   day,
                 );
-                final dayRecords = _monthRecords[_dayKey(date)] ?? [];
+                final dayRecords = monthRecords[_dayKey(date)] ?? const [];
                 final isToday = isCurrentMonth && day == today.day;
                 final isSelected =
                     _selectedDate?.day == day &&
@@ -550,8 +444,11 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  Widget _buildSelectedDayDetail() {
-    if (_selectedDayRecords.isEmpty) {
+  /// 选中日期的详情。记录由 `build` 从 provider 派生后传进来，
+  /// 这里不再自己持有数据、也不再触发重载 —— 新增/编辑后 provider 会 notify，
+  /// `context.watch` 会让整页（含这里）自动刷新。
+  Widget _buildSelectedDayDetail(List<MoodRecord> records) {
+    if (records.isEmpty) {
       // 无记录 — 显示补记按钮
       final now = DateTime.now();
       final isToday =
@@ -578,16 +475,13 @@ class _CalendarPageState extends State<CalendarPage> {
               const SizedBox(height: 8),
               TextButton.icon(
                 onPressed: () async {
-                  final result = await Navigator.of(context).push(
+                  await Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => MoodRecordPage(
                         initialDate: isToday ? null : _selectedDate!,
                       ),
                     ),
                   );
-                  if (result == true) {
-                    _loadMonthData();
-                  }
                 },
                 icon: const Icon(Icons.event_note, size: 16),
                 label: Text(isToday ? '记录今天的心情' : '补记这天的心情'),
@@ -616,22 +510,19 @@ class _CalendarPageState extends State<CalendarPage> {
               children: [
                 Expanded(
                   child: Text(
-                    '${_selectedDate!.month}月${_selectedDate!.day}日 · ${_selectedDayRecords.length} 条记录',
+                    '${_selectedDate!.month}月${_selectedDate!.day}日 · ${records.length} 条记录',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
                 // 继续补记按钮
                 TextButton.icon(
                   onPressed: () async {
-                    final result = await Navigator.of(context).push(
+                    await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) =>
                             MoodRecordPage(initialDate: _selectedDate!),
                       ),
                     );
-                    if (result == true) {
-                      _loadMonthData();
-                    }
                   },
                   icon: const Icon(Icons.add, size: 16),
                   label: const Text('追加'),
@@ -647,9 +538,9 @@ class _CalendarPageState extends State<CalendarPage> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-              itemCount: _selectedDayRecords.length,
+              itemCount: records.length,
               itemBuilder: (context, index) {
-                final record = _selectedDayRecords[index];
+                final record = records[index];
                 return _buildDayRecordCard(record);
               },
             ),
@@ -734,14 +625,13 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
-  /// 点击记录卡片 → 直接进入编辑
+  /// 点击记录卡片 → 直接进入编辑。
+  /// 编辑保存后 provider 会 notifyListeners，`context.watch` 会让日历自动刷新，
+  /// 因此这里不需要（也不应该）再手动重载一次。
   Future<void> _editRecord(MoodRecord record) async {
-    final result = await Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => MoodRecordPage(existingRecord: record)),
     );
-    if (result == true && mounted) {
-      _loadMonthData();
-    }
   }
 
   /// 长按记录卡片 → 弹出编辑/删除操作菜单
@@ -791,14 +681,11 @@ class _CalendarPageState extends State<CalendarPage> {
                   title: const Text('修改这条记录'),
                   onTap: () async {
                     Navigator.of(ctx).pop();
-                    final result = await Navigator.of(context).push(
+                    await Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => MoodRecordPage(existingRecord: record),
                       ),
                     );
-                    if (result == true) {
-                      _loadMonthData();
-                    }
                   },
                 ),
                 ListTile(
@@ -825,7 +712,6 @@ class _CalendarPageState extends State<CalendarPage> {
                           ),
                         );
                       }
-                      _loadMonthData();
                     }
                   },
                 ),
