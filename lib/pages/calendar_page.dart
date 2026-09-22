@@ -25,6 +25,22 @@ class _CalendarPageState extends State<CalendarPage> {
   MoodProvider? _providerRef;
   int _monthChangeDirection = 1;
 
+  /// 加载序号：每次发起加载 +1，回来时序号对不上就丢弃结果。
+  /// 快速连点月份箭头时，旧月份的请求可能晚于新月份的请求返回，
+  /// 没有这个保护会把界面覆盖成旧月份的数据。
+  int _loadToken = 0;
+
+  /// 是否已经成功加载过一次。首次加载才显示整块转圈，
+  /// 之后 provider 变化触发的静默刷新不再闪 loading。
+  bool _hasLoadedOnce = false;
+
+  /// 最近一次加载是否失败（用于给出重试入口，而不是一直转圈）。
+  bool _loadFailed = false;
+
+  /// provider 变化已经排队了一次重载，避免同一帧内多个通知
+  /// （loadAllData 会连续 notifyListeners 数次）触发多次全量查询。
+  bool _reloadScheduled = false;
+
   @override
   void initState() {
     super.initState();
@@ -32,6 +48,7 @@ class _CalendarPageState extends State<CalendarPage> {
     final now = DateTime.now();
     _selectedDate = DateTime(now.year, now.month, now.day);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _providerRef = context.read<MoodProvider>();
       _providerRef!.addListener(_onProviderChanged);
       _loadMonthData();
@@ -44,50 +61,92 @@ class _CalendarPageState extends State<CalendarPage> {
     super.dispose();
   }
 
+  /// provider 数据变化 → 合并到下一帧只重载一次。
   void _onProviderChanged() {
-    _loadMonthData();
+    if (_reloadScheduled) return;
+    _reloadScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _reloadScheduled = false;
+      if (mounted) _loadMonthData();
+    });
   }
 
+  /// 分组 / 查表用的日期键，必须与 `_buildCalendarGrid` 里保持一致。
+  static String _dayKey(DateTime date) =>
+      '${date.year}-${date.month}-${date.day}';
+
+  /// 加载当前聚焦月份的记录。
+  ///
+  /// 三个要点：
+  /// 1. 任何异常都要把 loading 收掉，否则 spinner 会永远转下去；
+  /// 2. 只有序号最新的那次加载才允许写状态（防乱序覆盖）；
+  /// 3. 每次 await 回来都要检查 mounted，避免在已销毁的 State 上 setState。
   Future<void> _loadMonthData() async {
-    setState(() {
-      _isLoading = true;
-    });
+    final token = ++_loadToken;
 
-    final provider = context.read<MoodProvider>();
-    final start = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
-    final end =
-        DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0, 23, 59, 59);
-    final records = await provider.getRecordsBetween(start, end);
-
-    final grouped = <String, List<MoodRecord>>{};
-    for (final r in records) {
-      final key = '${r.createdAt.year}-${r.createdAt.month}-${r.createdAt.day}';
-      grouped.putIfAbsent(key, () => []).add(r);
+    if (!_hasLoadedOnce) {
+      setState(() {
+        _isLoading = true;
+        _loadFailed = false;
+      });
     }
 
-    setState(() {
-      _monthRecords = grouped;
-      _isLoading = false;
-    });
+    try {
+      final provider = context.read<MoodProvider>();
+      final start = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
+      final end = DateTime(
+        _focusedMonth.year,
+        _focusedMonth.month + 1,
+        0,
+        23,
+        59,
+        59,
+      );
+      final records = await provider.getRecordsBetween(start, end);
 
-    if (_selectedDate != null) {
-      _loadSelectedDay(_selectedDate!);
+      if (!mounted || token != _loadToken) return;
+
+      final grouped = <String, List<MoodRecord>>{};
+      for (final r in records) {
+        grouped.putIfAbsent(_dayKey(r.createdAt), () => []).add(r);
+      }
+
+      setState(() {
+        _monthRecords = grouped;
+        _isLoading = false;
+        _loadFailed = false;
+        _hasLoadedOnce = true;
+        if (_selectedDate != null) {
+          _selectedDayRecords = grouped[_dayKey(_selectedDate!)] ?? [];
+        }
+      });
+    } catch (e, st) {
+      // 数据库异常、查询卡死被取消等情况都在这里兜住：
+      // 必须收掉 loading，并留下可重试的痕迹。
+      debugPrint('CalendarPage._loadMonthData failed: $e\n$st');
+      if (!mounted || token != _loadToken) return;
+      setState(() {
+        _isLoading = false;
+        _loadFailed = true;
+      });
     }
   }
 
   void _loadSelectedDay(DateTime date) {
-    final key = '${date.year}-${date.month}-${date.day}';
     setState(() {
       _selectedDate = date;
-      _selectedDayRecords = _monthRecords[key] ?? [];
+      _selectedDayRecords = _monthRecords[_dayKey(date)] ?? [];
     });
   }
 
   void _changeMonth(int delta) {
     setState(() {
       _monthChangeDirection = delta > 0 ? 1 : -1;
-      _focusedMonth =
-          DateTime(_focusedMonth.year, _focusedMonth.month + delta, 1);
+      _focusedMonth = DateTime(
+        _focusedMonth.year,
+        _focusedMonth.month + delta,
+        1,
+      );
       _selectedDate = null;
       _selectedDayRecords = [];
     });
@@ -119,6 +178,15 @@ class _CalendarPageState extends State<CalendarPage> {
                         ),
                       ),
                     ),
+                  // 加载失败时给出明确出口，避免一直显示转圈让人干等。
+                  // 只占底部一条，不遮挡日历本身的点击。
+                  if (!_isLoading && _loadFailed)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 8,
+                      child: Center(child: _buildLoadFailedBanner()),
+                    ),
                 ],
               ),
             ),
@@ -142,17 +210,15 @@ class _CalendarPageState extends State<CalendarPage> {
         final begin = Offset(-_monthChangeDirection.toDouble(), 0);
         return SlideTransition(
           position: animation.drive(
-            Tween<Offset>(begin: begin, end: Offset.zero).chain(
-              CurveTween(curve: Curves.easeOutCubic),
-            ),
+            Tween<Offset>(
+              begin: begin,
+              end: Offset.zero,
+            ).chain(CurveTween(curve: Curves.easeOutCubic)),
           ),
           child: child,
         );
       },
-      child: KeyedSubtree(
-        key: ValueKey(monthKey),
-        child: _buildCalendarGrid(),
-      ),
+      child: KeyedSubtree(key: ValueKey(monthKey), child: _buildCalendarGrid()),
     );
   }
 
@@ -169,7 +235,7 @@ class _CalendarPageState extends State<CalendarPage> {
       '九月',
       '十月',
       '十一月',
-      '十二月'
+      '十二月',
     ];
 
     return Padding(
@@ -222,16 +288,76 @@ class _CalendarPageState extends State<CalendarPage> {
     );
   }
 
+  /// 月份数据加载失败时的提示条（含重试按钮）。
+  Widget _buildLoadFailedBanner() {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppTheme.cardBgOf(context),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.error_outline,
+              size: 16,
+              color: AppTheme.textSecondaryOf(context),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '这个月的数据没加载出来',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppTheme.textSecondaryOf(context),
+              ),
+            ),
+            const SizedBox(width: 4),
+            TextButton(
+              onPressed: _loadMonthData,
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.primaryColor,
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              child: const Text('重试'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildCalendarGrid() {
     final firstOfMonth = DateTime(_focusedMonth.year, _focusedMonth.month, 1);
-    final daysInMonth =
-        DateTime(_focusedMonth.year, _focusedMonth.month + 1, 0).day;
+    final daysInMonth = DateTime(
+      _focusedMonth.year,
+      _focusedMonth.month + 1,
+      0,
+    ).day;
     // 周一=1, 周日=7 → 转为索引 0-6
     final firstWeekday = (firstOfMonth.weekday - 1);
 
     final today = DateTime.now();
     final isCurrentMonth =
         today.year == _focusedMonth.year && today.month == _focusedMonth.month;
+
+    final int rowCount = ((firstWeekday + daysInMonth) / 7).ceil();
 
     return ClipRect(
       child: GestureDetector(
@@ -243,36 +369,82 @@ class _CalendarPageState extends State<CalendarPage> {
             _changeMonth(-1); // 右滑 → 上个月
           }
         },
-        child: GridView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 7,
-            childAspectRatio: 0.85,
-            crossAxisSpacing: 4,
-            mainAxisSpacing: 4,
-          ),
-          itemCount: firstWeekday + daysInMonth,
-          itemBuilder: (context, index) {
-            if (index < firstWeekday) {
-              return const SizedBox.shrink();
-            }
-            final day = index - firstWeekday + 1;
-            final date = DateTime(_focusedMonth.year, _focusedMonth.month, day);
-            final key = '${date.year}-${date.month}-${date.day}';
-            final dayRecords = _monthRecords[key] ?? [];
-            final isToday = isCurrentMonth && day == today.day;
-            final isSelected = _selectedDate?.day == day &&
-                _selectedDate?.month == _focusedMonth.month &&
-                _selectedDate?.year == _focusedMonth.year;
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            const double hPadding = 12;
+            const double spacing = 4;
+            // 低于这个高度，日格里的「日期 + 情绪圆点」就挤不下了。
+            // 与其把内容裁掉，不如让网格可以滚动。
+            const double minCellHeight = 46;
 
-            return _buildDayCell(
-              date: date,
-              day: day,
-              records: dayRecords,
-              isToday: isToday,
-              isSelected: isSelected,
-              onTap: () => _loadSelectedDay(date),
+            final double availableWidth = constraints.maxWidth - hPadding * 2;
+            double cellWidth = (availableWidth - spacing * 6) / 7;
+            if (cellWidth <= 0) cellWidth = 1;
+
+            // 竖屏原设计比例：宽高比 0.85 → 单元格高 = 宽 / 0.85
+            final double idealCellHeight = cellWidth / 0.85;
+
+            final double fittedCellHeight = constraints.maxHeight.isFinite
+                ? (constraints.maxHeight - spacing * (rowCount - 1)) / rowCount
+                : idealCellHeight;
+
+            // 高度宽裕 → 用理想比例，但压到可用高度内，保证每行都看得见；
+            // 高度不足 → 锁在最小可读高度，并允许滚动。
+            final bool scrollable = fittedCellHeight < minCellHeight;
+            final double cellHeight;
+            if (scrollable) {
+              cellHeight = minCellHeight;
+            } else {
+              cellHeight = fittedCellHeight < idealCellHeight
+                  ? fittedCellHeight
+                  : idealCellHeight;
+            }
+
+            final double aspectRatio = cellHeight <= 0
+                ? 1.0
+                : cellWidth / cellHeight;
+
+            return GridView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: hPadding),
+              // 关键：装得下就不滚（保留左右滑动切月的手势），
+              // 装不下必须能滚。原来一律 NeverScrollableScrollPhysics，
+              // 窗口一拉宽单元格跟着变大，后面几行就被压出可视区且无法滚动。
+              physics: scrollable
+                  ? const ClampingScrollPhysics()
+                  : const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                childAspectRatio: aspectRatio,
+                crossAxisSpacing: spacing,
+                mainAxisSpacing: spacing,
+              ),
+              itemCount: firstWeekday + daysInMonth,
+              itemBuilder: (context, index) {
+                if (index < firstWeekday) {
+                  return const SizedBox.shrink();
+                }
+                final day = index - firstWeekday + 1;
+                final date = DateTime(
+                  _focusedMonth.year,
+                  _focusedMonth.month,
+                  day,
+                );
+                final dayRecords = _monthRecords[_dayKey(date)] ?? [];
+                final isToday = isCurrentMonth && day == today.day;
+                final isSelected =
+                    _selectedDate?.day == day &&
+                    _selectedDate?.month == _focusedMonth.month &&
+                    _selectedDate?.year == _focusedMonth.year;
+
+                return _buildDayCell(
+                  date: date,
+                  day: day,
+                  records: dayRecords,
+                  isToday: isToday,
+                  isSelected: isSelected,
+                  onTap: () => _loadSelectedDay(date),
+                );
+              },
             );
           },
         ),
@@ -297,8 +469,9 @@ class _CalendarPageState extends State<CalendarPage> {
       for (final r in records) {
         counts[r.moodType] = (counts[r.moodType] ?? 0) + 1;
       }
-      final topMood =
-          counts.entries.reduce((a, b) => a.value >= b.value ? a : b);
+      final topMood = counts.entries.reduce(
+        (a, b) => a.value >= b.value ? a : b,
+      );
       moodColor = Color(topMood.key.colorValue);
     }
 
@@ -309,57 +482,69 @@ class _CalendarPageState extends State<CalendarPage> {
           color: isSelected
               ? AppTheme.primaryColor.withValues(alpha: 0.15)
               : (moodColor != null
-                  ? moodColor.withValues(alpha: 0.12)
-                  : Colors.transparent),
+                    ? moodColor.withValues(alpha: 0.12)
+                    : Colors.transparent),
           borderRadius: BorderRadius.circular(10),
           border: isToday
               ? Border.all(color: AppTheme.primaryColor, width: 1.5)
               : null,
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              '$day',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight:
-                    isToday || isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isToday
-                    ? AppTheme.primaryColor
-                    : (hasRecords
-                        ? AppTheme.textPrimaryOf(context)
-                        : AppTheme.textHintOf(context)),
-              ),
-            ),
-            const SizedBox(height: 2),
-            if (hasRecords) ...[
-              // 情绪圆点指示
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: records.take(3).map((r) {
-                  return Container(
-                    width: 6,
-                    height: 6,
-                    margin: const EdgeInsets.symmetric(horizontal: 1),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(r.moodType.colorValue),
-                    ),
-                  );
-                }).toList(),
-              ),
-              if (records.length > 3)
+        child: Padding(
+          padding: const EdgeInsets.all(2),
+          // 格子高度会随窗口变化，固定字号的「日期 + 圆点 + 条数」很容易撑破
+          // 单元格（黄色溢出条纹）。scaleDown 只在不合身时等比缩小，正常尺寸
+          // 下完全不生效。
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
                 Text(
-                  '${records.length}',
+                  '$day',
                   style: TextStyle(
-                    fontSize: 9,
-                    color: AppTheme.textHintOf(context),
+                    fontSize: 14,
+                    fontWeight: isToday || isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    color: isToday
+                        ? AppTheme.primaryColor
+                        : (hasRecords
+                              ? AppTheme.textPrimaryOf(context)
+                              : AppTheme.textHintOf(context)),
                   ),
                 ),
-            ] else
-              const SizedBox(height: 8),
-          ],
+                const SizedBox(height: 2),
+                if (hasRecords) ...[
+                  // 情绪圆点指示
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: records.take(3).map((r) {
+                      return Container(
+                        width: 6,
+                        height: 6,
+                        margin: const EdgeInsets.symmetric(horizontal: 1),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Color(r.moodType.colorValue),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  if (records.length > 3)
+                    Text(
+                      '${records.length}',
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: AppTheme.textHintOf(context),
+                      ),
+                    ),
+                ] else
+                  const SizedBox(height: 8),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -369,11 +554,13 @@ class _CalendarPageState extends State<CalendarPage> {
     if (_selectedDayRecords.isEmpty) {
       // 无记录 — 显示补记按钮
       final now = DateTime.now();
-      final isToday = _selectedDate!.year == now.year &&
+      final isToday =
+          _selectedDate!.year == now.year &&
           _selectedDate!.month == now.month &&
           _selectedDate!.day == now.day;
-      final isFuture =
-          _selectedDate!.isAfter(DateTime(now.year, now.month, now.day));
+      final isFuture = _selectedDate!.isAfter(
+        DateTime(now.year, now.month, now.day),
+      );
 
       return Container(
         height: 100,
@@ -384,8 +571,8 @@ class _CalendarPageState extends State<CalendarPage> {
             Text(
               isFuture ? '未来的日期还没到来' : '这天没有记录',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textHintOf(context),
-                  ),
+                color: AppTheme.textHintOf(context),
+              ),
             ),
             if (!isFuture) ...[
               const SizedBox(height: 8),
@@ -407,7 +594,9 @@ class _CalendarPageState extends State<CalendarPage> {
                 style: TextButton.styleFrom(
                   foregroundColor: AppTheme.primaryColor,
                   textStyle: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w500),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -495,8 +684,10 @@ class _CalendarPageState extends State<CalendarPage> {
                 borderRadius: BorderRadius.circular(11),
               ),
               child: Center(
-                child: Text(record.moodType.emoji,
-                    style: const TextStyle(fontSize: 24)),
+                child: Text(
+                  record.moodType.emoji,
+                  style: const TextStyle(fontSize: 24),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -512,17 +703,18 @@ class _CalendarPageState extends State<CalendarPage> {
                       ),
                       const SizedBox(width: 8),
                       IntensityDots(
-                          intensity: record.intensity,
-                          color: moodColor,
-                          size: 6),
+                        intensity: record.intensity,
+                        color: moodColor,
+                        size: 6,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
                     '$hour:$minute',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.textHintOf(context),
-                        ),
+                      color: AppTheme.textHintOf(context),
+                    ),
                   ),
                   if (record.note != null && record.note!.isNotEmpty) ...[
                     const SizedBox(height: 4),
@@ -545,9 +737,7 @@ class _CalendarPageState extends State<CalendarPage> {
   /// 点击记录卡片 → 直接进入编辑
   Future<void> _editRecord(MoodRecord record) async {
     final result = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => MoodRecordPage(existingRecord: record),
-      ),
+      MaterialPageRoute(builder: (_) => MoodRecordPage(existingRecord: record)),
     );
     if (result == true && mounted) {
       _loadMonthData();
@@ -584,8 +774,10 @@ class _CalendarPageState extends State<CalendarPage> {
                   padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                   child: Row(
                     children: [
-                      Text(record.moodType.emoji,
-                          style: const TextStyle(fontSize: 20)),
+                      Text(
+                        record.moodType.emoji,
+                        style: const TextStyle(fontSize: 20),
+                      ),
                       const SizedBox(width: 10),
                       Text(
                         record.moodType.label,
@@ -610,17 +802,21 @@ class _CalendarPageState extends State<CalendarPage> {
                   },
                 ),
                 ListTile(
-                  leading:
-                      Icon(Icons.delete_outline, color: Colors.red.shade400),
-                  title: Text('删除这条记录',
-                      style: TextStyle(color: Colors.red.shade400)),
+                  leading: Icon(
+                    Icons.delete_outline,
+                    color: Colors.red.shade400,
+                  ),
+                  title: Text(
+                    '删除这条记录',
+                    style: TextStyle(color: Colors.red.shade400),
+                  ),
                   onTap: () async {
                     Navigator.of(ctx).pop();
                     final shouldDelete = await _confirmDelete(record) ?? false;
                     if (shouldDelete && mounted) {
-                      await context
-                          .read<MoodProvider>()
-                          .deleteRecord(record.id!);
+                      await context.read<MoodProvider>().deleteRecord(
+                        record.id!,
+                      );
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -648,8 +844,9 @@ class _CalendarPageState extends State<CalendarPage> {
         return AlertDialog(
           title: const Text('删除这条记录？'),
           content: Text('删除后无法恢复。确定要删除这条${record.moodType.label}记录吗？'),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),

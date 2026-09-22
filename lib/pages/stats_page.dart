@@ -24,10 +24,17 @@ class _StatsPageState extends State<StatsPage> {
   bool _isLoading = false;
   MoodProvider? _providerRef;
 
+  /// 加载序号：只允许最新一次加载写状态（防乱序覆盖）。
+  int _loadToken = 0;
+
+  /// provider 同一帧内多次通知只排一次重载。
+  bool _reloadScheduled = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _providerRef = context.read<MoodProvider>();
       _providerRef!.addListener(_onProviderChanged);
       _loadData();
@@ -40,33 +47,56 @@ class _StatsPageState extends State<StatsPage> {
     super.dispose();
   }
 
-  /// Provider 数据变化时重新加载统计数据
+  /// Provider 数据变化时重新加载统计数据（同一帧内合并为一次）。
   void _onProviderChanged() {
-    _loadData();
+    if (_reloadScheduled) return;
+    _reloadScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _reloadScheduled = false;
+      if (mounted) _loadData();
+    });
   }
 
   Future<void> _loadData() async {
+    final token = ++_loadToken;
+
     setState(() {
       _isLoading = true;
     });
 
-    final provider = context.read<MoodProvider>();
-    final days = _isWeekly ? 7 : 30;
+    try {
+      final provider = context.read<MoodProvider>();
+      final days = _isWeekly ? 7 : 30;
 
-    // 本期数据
-    _periodRecords = await provider.getRecentRecords(days);
+      // 本期数据
+      final periodRecords = await provider.getRecentRecords(days);
 
-    // 上期数据（用于对比）
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final currentStart = today.subtract(Duration(days: days - 1));
-    final prevStart = currentStart.subtract(Duration(days: days));
-    final prevEnd = currentStart;
-    _prevPeriodRecords = await provider.getRecordsBetween(prevStart, prevEnd);
+      // 上期数据（用于对比）
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final currentStart = today.subtract(Duration(days: days - 1));
+      final prevStart = currentStart.subtract(Duration(days: days));
+      final prevEnd = currentStart;
+      final prevPeriodRecords = await provider.getRecordsBetween(
+        prevStart,
+        prevEnd,
+      );
 
-    setState(() {
-      _isLoading = false;
-    });
+      // 与日历页同理：序号不是最新的说明用户已经切了周/月视图，
+      // 这次的结果作废，避免旧请求覆盖新数据。
+      if (!mounted || token != _loadToken) return;
+
+      setState(() {
+        _periodRecords = periodRecords;
+        _prevPeriodRecords = prevPeriodRecords;
+        _isLoading = false;
+      });
+    } catch (e, st) {
+      // 查询失败也必须收掉 loading，否则会一直转圈。
+      debugPrint('StatsPage._loadData failed: $e\n$st');
+      if (!mounted || token != _loadToken) return;
+      setState(() => _isLoading = false);
+    }
   }
 
   void _switchMode(bool weekly) {
@@ -111,8 +141,8 @@ class _StatsPageState extends State<StatsPage> {
                     Text(
                       '了解自己的情绪规律',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppTheme.textSecondaryOf(context),
-                          ),
+                        color: AppTheme.textSecondaryOf(context),
+                      ),
                     ),
                     const SizedBox(height: 20),
 
@@ -263,10 +293,7 @@ class _StatsPageState extends State<StatsPage> {
         children: [
           Row(
             children: [
-              Text(
-                '情绪强度趋势',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              Text('情绪强度趋势', style: Theme.of(context).textTheme.titleMedium),
               const Spacer(),
               Container(
                 width: 10,
@@ -277,17 +304,11 @@ class _StatsPageState extends State<StatsPage> {
                 ),
               ),
               const SizedBox(width: 4),
-              Text(
-                '平均强度',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              Text('平均强度', style: Theme.of(context).textTheme.bodySmall),
             ],
           ),
           const SizedBox(height: 24),
-          SizedBox(
-            height: 180,
-            child: _buildLineChart(trendData),
-          ),
+          SizedBox(height: 180, child: _buildLineChart(trendData)),
         ],
       ),
     );
@@ -306,8 +327,9 @@ class _StatsPageState extends State<StatsPage> {
       final dayEnd = date.add(const Duration(days: 1));
 
       final dayRecords = _periodRecords.where((r) {
-        return r.createdAt
-                .isAfter(dayStart.subtract(const Duration(milliseconds: 1))) &&
+        return r.createdAt.isAfter(
+              dayStart.subtract(const Duration(milliseconds: 1)),
+            ) &&
             r.createdAt.isBefore(dayEnd);
       }).toList();
 
@@ -317,7 +339,7 @@ class _StatsPageState extends State<StatsPage> {
       } else {
         avgIntensity =
             dayRecords.map((r) => r.intensity).reduce((a, b) => a + b) /
-                dayRecords.length;
+            dayRecords.length;
       }
 
       String label;
@@ -328,13 +350,15 @@ class _StatsPageState extends State<StatsPage> {
         label = '${date.day}';
       }
 
-      result.add(_TrendPoint(
-        x: (days - 1 - i).toDouble(),
-        y: avgIntensity,
-        label: label,
-        date: date,
-        count: dayRecords.length,
-      ));
+      result.add(
+        _TrendPoint(
+          x: (days - 1 - i).toDouble(),
+          y: avgIntensity,
+          label: label,
+          date: date,
+          count: dayRecords.length,
+        ),
+      );
     }
 
     return result;
@@ -346,16 +370,15 @@ class _StatsPageState extends State<StatsPage> {
 
     if (hasData.isEmpty) {
       return Center(
-        child: Text(
-          '本期暂无记录',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        child: Text('本期暂无记录', style: Theme.of(context).textTheme.bodySmall),
       );
     }
 
     // 仅在连续有数据的点之间画线
-    final lineSpots =
-        data.where((d) => d.y > 0).map((d) => FlSpot(d.x, d.y)).toList();
+    final lineSpots = data
+        .where((d) => d.y > 0)
+        .map((d) => FlSpot(d.x, d.y))
+        .toList();
 
     final maxY = 5.0;
     final interval = _isWeekly ? 1.0 : 5.0;
@@ -367,17 +390,16 @@ class _StatsPageState extends State<StatsPage> {
           drawVerticalLine: false,
           horizontalInterval: 1,
           getDrawingHorizontalLine: (value) {
-            return FlLine(
-              color: AppTheme.dividerOf(context),
-              strokeWidth: 1,
-            );
+            return FlLine(color: AppTheme.dividerOf(context), strokeWidth: 1);
           },
         ),
         titlesData: FlTitlesData(
-          topTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -486,10 +508,7 @@ class _StatsPageState extends State<StatsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '情绪分布',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text('情绪分布', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Text(
             '共 $totalCount 条记录',
@@ -512,15 +531,15 @@ class _StatsPageState extends State<StatsPage> {
                       Text(
                         '${item.count} 次',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.textSecondaryOf(context),
-                            ),
+                          color: AppTheme.textSecondaryOf(context),
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         '${(percent * 100).toInt()}%',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppTheme.textHintOf(context),
-                            ),
+                          color: AppTheme.textHintOf(context),
+                        ),
                       ),
                     ],
                   ),
@@ -568,7 +587,7 @@ class _StatsPageState extends State<StatsPage> {
     final mostFrequent = distribution.first;
     final avgIntensity =
         _periodRecords.map((r) => r.intensity).reduce((a, b) => a + b) /
-            _periodRecords.length;
+        _periodRecords.length;
     final recordDays = _computeTrendData().where((d) => d.count > 0).length;
 
     return Container(
@@ -580,26 +599,15 @@ class _StatsPageState extends State<StatsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '本期概况',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text('本期概况', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 16),
           _buildSummaryRow(
             '📅',
             '记录天数',
             '$recordDays / ${_isWeekly ? 7 : 30} 天',
           ),
-          _buildSummaryRow(
-            '📝',
-            '记录次数',
-            '${_periodRecords.length} 次',
-          ),
-          _buildSummaryRow(
-            '📊',
-            '平均强度',
-            avgIntensity.toStringAsFixed(1),
-          ),
+          _buildSummaryRow('📝', '记录次数', '${_periodRecords.length} 次'),
+          _buildSummaryRow('📊', '平均强度', avgIntensity.toStringAsFixed(1)),
           _buildSummaryRow(
             mostFrequent.mood.emoji,
             '最常出现',
@@ -620,15 +628,15 @@ class _StatsPageState extends State<StatsPage> {
           Text(
             label,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppTheme.textSecondaryOf(context),
-                ),
+              color: AppTheme.textSecondaryOf(context),
+            ),
           ),
           const Spacer(),
           Text(
             value,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -652,16 +660,13 @@ class _StatsPageState extends State<StatsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '触发标签排行',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text('触发标签排行', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Text(
             '本期最常出现的触发因素',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textSecondaryOf(context),
-                ),
+              color: AppTheme.textSecondaryOf(context),
+            ),
           ),
           const SizedBox(height: 20),
           ...tagStats.map((item) {
@@ -675,13 +680,17 @@ class _StatsPageState extends State<StatsPage> {
                 children: [
                   Row(
                     children: [
-                      Text('$emoji $label',
-                          style: Theme.of(context).textTheme.bodyMedium),
+                      Text(
+                        '$emoji $label',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                       const Spacer(),
-                      Text('$count 次',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: AppTheme.textSecondaryOf(context),
-                              )),
+                      Text(
+                        '$count 次',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.textSecondaryOf(context),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -691,8 +700,9 @@ class _StatsPageState extends State<StatsPage> {
                       value: percent,
                       minHeight: 6,
                       backgroundColor: AppTheme.dividerOf(context),
-                      valueColor:
-                          const AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        AppTheme.primaryColor,
+                      ),
                     ),
                   ),
                 ],
@@ -712,9 +722,7 @@ class _StatsPageState extends State<StatsPage> {
         counts[tag] = (counts[tag] ?? 0) + 1;
       }
     }
-    final items = counts.entries
-        .map((e) => (e.key, e.value))
-        .toList();
+    final items = counts.entries.map((e) => (e.key, e.value)).toList();
     items.sort((a, b) => b.$2.compareTo(a.$2));
     return items.take(5).toList();
   }
@@ -734,16 +742,13 @@ class _StatsPageState extends State<StatsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '时段情绪分析',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text('时段情绪分析', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Text(
             '不同时段的情绪分布',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textSecondaryOf(context),
-                ),
+              color: AppTheme.textSecondaryOf(context),
+            ),
           ),
           const SizedBox(height: 20),
           ...stats.entries.map((entry) {
@@ -775,7 +780,10 @@ class _StatsPageState extends State<StatsPage> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Center(
-                      child: Text(moodEmoji, style: const TextStyle(fontSize: 20)),
+                      child: Text(
+                        moodEmoji,
+                        style: const TextStyle(fontSize: 20),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -783,16 +791,16 @@ class _StatsPageState extends State<StatsPage> {
                     child: Text(
                       moodLabel,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: moodColor,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        color: moodColor,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   Text(
                     '${data.count} 条',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppTheme.textSecondaryOf(context),
-                        ),
+                      color: AppTheme.textSecondaryOf(context),
+                    ),
                   ),
                 ],
               ),
@@ -845,16 +853,13 @@ class _StatsPageState extends State<StatsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '星期情绪分析',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text('星期情绪分析', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Text(
             '每天的平均情绪强度',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textSecondaryOf(context),
-                ),
+              color: AppTheme.textSecondaryOf(context),
+            ),
           ),
           const SizedBox(height: 20),
           // 柱状图
@@ -898,7 +903,8 @@ class _StatsPageState extends State<StatsPage> {
                                 ? AppTheme.primaryColor.withValues(alpha: 0.8)
                                 : AppTheme.dividerOf(context),
                             borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(4)),
+                              top: Radius.circular(4),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -967,11 +973,11 @@ class _StatsPageState extends State<StatsPage> {
     final currAvg = _periodRecords.isEmpty
         ? 0.0
         : _periodRecords.map((r) => r.intensity).reduce((a, b) => a + b) /
-            _periodRecords.length;
+              _periodRecords.length;
     final prevAvg = _prevPeriodRecords.isEmpty
         ? 0.0
         : _prevPeriodRecords.map((r) => r.intensity).reduce((a, b) => a + b) /
-            _prevPeriodRecords.length;
+              _prevPeriodRecords.length;
 
     final countDiff = currCount - prevCount;
     final avgDiff = currAvg - prevAvg;
@@ -985,16 +991,13 @@ class _StatsPageState extends State<StatsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '环比对比',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text('环比对比', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Text(
             _isWeekly ? '本周 vs 上周' : '本月 vs 上月',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppTheme.textSecondaryOf(context),
-                ),
+              color: AppTheme.textSecondaryOf(context),
+            ),
           ),
           const SizedBox(height: 16),
           // 记录次数对比
@@ -1057,27 +1060,31 @@ class _StatsPageState extends State<StatsPage> {
         Text(
           label,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppTheme.textSecondaryOf(context),
-              ),
+            color: AppTheme.textSecondaryOf(context),
+          ),
         ),
         const Spacer(),
         // 上期值
         Text(
           '${fmt(prevValue)}$unit',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppTheme.textHintOf(context),
-                decoration: TextDecoration.lineThrough,
-              ),
+            color: AppTheme.textHintOf(context),
+            decoration: TextDecoration.lineThrough,
+          ),
         ),
         const SizedBox(width: 8),
-        Icon(Icons.arrow_forward, size: 14, color: AppTheme.textHintOf(context)),
+        Icon(
+          Icons.arrow_forward,
+          size: 14,
+          color: AppTheme.textHintOf(context),
+        ),
         const SizedBox(width: 8),
         // 本期值
         Text(
           '${fmt(currValue)}$unit',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(width: 10),
         // 变化量

@@ -16,10 +16,31 @@ class DatabaseService {
 
   Database? _database;
 
-  Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDatabase();
-    return _database!;
+  /// 正在进行中的首次初始化。
+  ///
+  /// 多个页面（日历页、统计页、情绪花园等）会在同一帧的 post-frame 回调里
+  /// 各自发起一次查询，如果这里不做单飞，两边会同时看到 `_database == null`
+  /// 并各自 `openDatabase` 同一个文件（还会并发跑 onCreate / onUpgrade），
+  /// 桌面端 FFI 实现下这两个打开操作会互相等待，查询永远不返回 ——
+  /// 表现就是「页面一直转圈」。这里让并发调用共享同一个 Future。
+  Future<Database>? _opening;
+
+  Future<Database> get database {
+    final existing = _database;
+    if (existing != null) return Future.value(existing);
+    return _opening ??= _open();
+  }
+
+  Future<Database> _open() async {
+    try {
+      final db = await _initDatabase();
+      _database = db;
+      return db;
+    } catch (_) {
+      // 初始化失败时清空，让下一次调用可以重试，而不是永久返回失败的 Future。
+      _opening = null;
+      rethrow;
+    }
   }
 
   Future<Database> _initDatabase() async {
@@ -50,7 +71,8 @@ class DatabaseService {
       )
     ''');
     await db.execute(
-        'CREATE INDEX idx_mood_created_at ON mood_records(created_at)');
+      'CREATE INDEX idx_mood_created_at ON mood_records(created_at)',
+    );
     await db.execute('''
       CREATE TABLE checkins (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -78,7 +100,8 @@ class DatabaseService {
       )
     ''');
     await db.execute(
-        'CREATE INDEX IF NOT EXISTS idx_urge_created_at ON urge_logs(created_at)');
+      'CREATE INDEX IF NOT EXISTS idx_urge_created_at ON urge_logs(created_at)',
+    );
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -128,8 +151,12 @@ class DatabaseService {
       final normalized = '$y-$m-$d';
       if (normalized == raw) continue;
       try {
-        await db.update('checkins', {'date': normalized},
-            where: 'id = ?', whereArgs: [id]);
+        await db.update(
+          'checkins',
+          {'date': normalized},
+          where: 'id = ?',
+          whereArgs: [id],
+        );
       } catch (_) {
         // UNIQUE 冲突：已存在补零写法的同一天，删除这条重复行
         await db.delete('checkins', where: 'id = ?', whereArgs: [id]);
@@ -162,7 +189,9 @@ class DatabaseService {
   }
 
   Future<List<MoodRecord>> getRecordsBetween(
-      DateTime start, DateTime end) async {
+    DateTime start,
+    DateTime end,
+  ) async {
     final db = await database;
     final maps = await db.query(
       'mood_records',
@@ -204,15 +233,17 @@ class DatabaseService {
 
   Future<int> getRecordCount() async {
     final db = await database;
-    final result =
-        await db.rawQuery('SELECT COUNT(*) as count FROM mood_records');
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM mood_records',
+    );
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
   Future<Set<String>> getRecordedDates() async {
     final db = await database;
-    final result =
-        await db.rawQuery('SELECT DISTINCT created_at FROM mood_records');
+    final result = await db.rawQuery(
+      'SELECT DISTINCT created_at FROM mood_records',
+    );
     final dates = <String>{};
     for (final row in result) {
       final ts = row['created_at'] as int;
@@ -281,8 +312,11 @@ class DatabaseService {
     final now = DateTime.now();
 
     for (int i = 0; i < 365; i++) {
-      final checkDate =
-          DateTime(now.year, now.month, now.day).subtract(Duration(days: i));
+      final checkDate = DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(Duration(days: i));
       final dateStr = _formatDateKey(checkDate);
       if (dates.contains(dateStr)) {
         streak++;
@@ -337,14 +371,21 @@ class DatabaseService {
 
   Future<int> updateUrgeLog(UrgeLog log) async {
     final db = await database;
-    return await db
-        .update('urge_logs', log.toMap(), where: 'id = ?', whereArgs: [log.id]);
+    return await db.update(
+      'urge_logs',
+      log.toMap(),
+      where: 'id = ?',
+      whereArgs: [log.id],
+    );
   }
 
   Future<void> close() async {
-    if (_database != null) {
-      await _database!.close();
-      _database = null;
+    final db = _database;
+    // 清掉单飞缓存，否则关库后再次访问会拿到已关闭的实例。
+    _database = null;
+    _opening = null;
+    if (db != null) {
+      await db.close();
     }
   }
 }
