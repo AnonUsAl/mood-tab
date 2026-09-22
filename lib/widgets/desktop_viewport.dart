@@ -1,24 +1,24 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// 桌面画布 —— 让桌面端（Windows / Linux / macOS）保持移动端排版
+/// 桌面端窗口尺寸兜底。
 ///
-/// 本项目的界面是按手机竖屏设计的。桌面窗口通常又宽又扁，
-/// 如果让界面直接铺满窗口，就会出现「卡片被横向摊开、元素错位、
-/// 底部内容被裁切」等排版问题。
+/// 两条原则：
 ///
-/// 处理方式：窗口仍然可以自由缩放，但当窗口宽度超过手机宽度时，
-/// 把整个 App 限制在一张固定宽度的「画布」里并水平居中，
-/// 画布之外的区域填充一层更深的底色。这样界面在任何窗口尺寸下
-/// 都与移动端保持一致。
-class DesktopViewport extends StatelessWidget {
-  /// 画布宽度（贴近主流手机的逻辑宽度）
-  static const double canvasWidth = 480;
+/// 1. **窗口可以随意缩放，横向拉大时内容跟着一起变宽** —— 不对内容宽度设上限，
+///    窗口有多宽界面就铺多宽，不做「固定宽度居中画布」那套。
+/// 2. **窗口缩得比内容最小逻辑尺寸还小时，不继续压缩内容** —— 内容保持最小尺寸
+///    并改为可滚动。这样窗口能缩到任意小，排版也不会溢出或被裁掉。
+///
+/// 也就是说这里只兜底「太小」，不管「太大」。
+class DesktopViewport extends StatefulWidget {
+  /// 内容可用的最小逻辑尺寸。窗口比这更小时不再压缩内容，改为滚动。
+  ///
+  /// 窗口本身没有任何尺寸限制，这两条只作用于内容。
+  static const double minContentWidth = 320;
+  static const double minContentHeight = 480;
 
-  /// 窗口宽度超过这个值才需要加画布（否则窗口本身已经够窄）
-  static const double _canvasThreshold = canvasWidth + 16;
-
-  /// 是否需要限制画布的平台：桌面端 true，移动端 / Web false
+  /// 是否需要处理尺寸的平台：桌面端 true，移动端 / Web false
   static bool get isDesktopPlatform {
     if (kIsWeb) return false;
     return defaultTargetPlatform == TargetPlatform.windows ||
@@ -31,49 +31,84 @@ class DesktopViewport extends StatelessWidget {
   const DesktopViewport({super.key, required this.child});
 
   @override
+  State<DesktopViewport> createState() => _DesktopViewportState();
+}
+
+class _DesktopViewportState extends State<DesktopViewport> {
+  final ScrollController _verticalController = ScrollController();
+  final ScrollController _horizontalController = ScrollController();
+
+  @override
+  void dispose() {
+    _verticalController.dispose();
+    _horizontalController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (!isDesktopPlatform) return child;
+    final Widget child = widget.child;
+    if (!DesktopViewport.isDesktopPlatform) return child;
 
     final media = MediaQuery.of(context);
-    if (media.size.width <= _canvasThreshold) return child;
+    final double windowWidth = media.size.width;
+    final double windowHeight = media.size.height;
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    // 画布外的底色：比 App 背景稍深，让画布有「一张纸」的层次感
-    final canvasOuterBg =
-        isDark ? const Color(0xFF111119) : const Color(0xFFE9E7E2);
+    final bool tooNarrow = windowWidth < DesktopViewport.minContentWidth;
+    final bool tooShort = windowHeight < DesktopViewport.minContentHeight;
 
-    return ColoredBox(
-      color: canvasOuterBg,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: canvasWidth),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 0),
-                ),
-              ],
-            ),
-            // SizedBox.expand：把画布撑满可用高度，同时宽度锁死在 canvasWidth
-            child: SizedBox.expand(
-              child: MediaQuery(
-                // 让画布内部的尺寸以画布为准，这样弹窗、底部弹层、
-                // 日期选择器等也会正确地限制在手机宽度内
-                data: media.copyWith(
-                  size: Size(canvasWidth, media.size.height),
-                  padding: EdgeInsets.zero,
-                  viewPadding: EdgeInsets.zero,
-                  viewInsets: EdgeInsets.zero,
-                ),
-                child: child,
-              ),
-            ),
-          ),
+    // 常态：窗口宽高都够用，内容直接用窗口尺寸 —— 一层都不多套，
+    // 横向拉大窗口内容就跟着变宽。
+    if (!tooNarrow && !tooShort) return child;
+
+    // 只有在某个方向上窗口已经小于内容最小尺寸时才介入：
+    // 该方向锁在最小尺寸，交给滚动容器。
+    final double contentWidth = tooNarrow
+        ? DesktopViewport.minContentWidth
+        : windowWidth;
+    final double contentHeight = tooShort
+        ? DesktopViewport.minContentHeight
+        : windowHeight;
+
+    Widget body = SizedBox(
+      width: contentWidth,
+      height: contentHeight,
+      child: MediaQuery(
+        // 让内容内部的尺寸以内容区为准，这样弹窗、底部弹层、
+        // 日期选择器等也会跟着按内容区计算
+        data: media.copyWith(
+          size: Size(contentWidth, contentHeight),
+          padding: EdgeInsets.zero,
+          viewPadding: EdgeInsets.zero,
+          viewInsets: EdgeInsets.zero,
         ),
+        child: child,
       ),
     );
+
+    // 纵向在外、横向在内：内容在两个方向上都只会「大于等于」窗口，
+    // 所以不需要额外居中，缺哪个方向就补哪一层滚动。
+    if (tooNarrow) {
+      body = Scrollbar(
+        controller: _horizontalController,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _horizontalController,
+          scrollDirection: Axis.horizontal,
+          child: body,
+        ),
+      );
+    }
+    if (tooShort) {
+      body = Scrollbar(
+        controller: _verticalController,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _verticalController,
+          child: body,
+        ),
+      );
+    }
+    return body;
   }
 }

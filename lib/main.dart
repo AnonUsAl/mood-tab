@@ -38,13 +38,13 @@ class MoodTabApp extends StatelessWidget {
             themeMode: provider.themeMode == 'dark'
                 ? ThemeMode.dark
                 : provider.themeMode == 'system'
-                    ? ThemeMode.system
-                    : ThemeMode.light,
-            // 桌面端（Windows / Linux / macOS）把界面收进手机宽度的画布并居中，
-            // 避免宽屏窗口把按竖屏设计的布局横向摊开。移动端 / Web 不受影响。
-            builder: (context, child) => DesktopViewport(
-              child: child ?? const SizedBox.shrink(),
-            ),
+                ? ThemeMode.system
+                : ThemeMode.light,
+            // 桌面端（Windows / Linux / macOS）的窗口尺寸兜底：
+            // 窗口可随意缩放、横向拉大内容就跟着变宽；只有窗口被缩到小于
+            // 内容最小尺寸时才锁住内容并改为滚动。移动端 / Web 不受影响。
+            builder: (context, child) =>
+                DesktopViewport(child: child ?? const SizedBox.shrink()),
             home: const _AppEntrance(),
           );
         },
@@ -153,7 +153,8 @@ class _AppEntranceState extends State<_AppEntrance>
       if (_preferences.dailyReminderEnabled &&
           _preferences.dailyReminderTimes.isNotEmpty) {
         await _notifications.scheduleDailyReminder(
-            _preferences.dailyReminderTimes);
+          _preferences.dailyReminderTimes,
+        );
       }
       // 启动时重新调度所有药物提醒（应对设备重启等场景）
       await provider.rescheduleMedicationReminders();
@@ -223,10 +224,7 @@ class _MainScaffoldState extends State<MainScaffold> {
     final bottomBarColor = isDark ? AppTheme.darkCardBg : AppTheme.cardBg;
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: BottomAppBar(
         elevation: 0,
         color: bottomBarColor,
@@ -235,12 +233,34 @@ class _MainScaffoldState extends State<MainScaffold> {
           height: 60,
           child: Row(
             children: [
-              Expanded(child: _buildNavItem(0, Icons.home_outlined, Icons.home, '今日')),
-              Expanded(child: _buildNavItem(
-                  1, Icons.calendar_month_outlined, Icons.calendar_month, '日历')),
+              Expanded(
+                child: _buildNavItem(0, Icons.home_outlined, Icons.home, '今日'),
+              ),
+              Expanded(
+                child: _buildNavItem(
+                  1,
+                  Icons.calendar_month_outlined,
+                  Icons.calendar_month,
+                  '日历',
+                ),
+              ),
               Expanded(child: _buildRecordNavItem()),
-              Expanded(child: _buildNavItem(2, Icons.bar_chart_outlined, Icons.bar_chart, '统计')),
-              Expanded(child: _buildNavItem(3, Icons.person_outline, Icons.person, '我的')),
+              Expanded(
+                child: _buildNavItem(
+                  2,
+                  Icons.bar_chart_outlined,
+                  Icons.bar_chart,
+                  '统计',
+                ),
+              ),
+              Expanded(
+                child: _buildNavItem(
+                  3,
+                  Icons.person_outline,
+                  Icons.person,
+                  '我的',
+                ),
+              ),
             ],
           ),
         ),
@@ -252,11 +272,9 @@ class _MainScaffoldState extends State<MainScaffold> {
   Widget _buildRecordNavItem() {
     return GestureDetector(
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => const MoodRecordPage(),
-          ),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const MoodRecordPage()));
       },
       behavior: HitTestBehavior.opaque,
       child: Column(
@@ -269,11 +287,7 @@ class _MainScaffoldState extends State<MainScaffold> {
               color: AppTheme.primaryColor,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
-              Icons.edit_note,
-              size: 22,
-              color: Colors.white,
-            ),
+            child: const Icon(Icons.edit_note, size: 22, color: Colors.white),
           ),
           const SizedBox(height: 2),
           const Text(
@@ -290,7 +304,11 @@ class _MainScaffoldState extends State<MainScaffold> {
   }
 
   Widget _buildNavItem(
-      int index, IconData icon, IconData activeIcon, String label) {
+    int index,
+    IconData icon,
+    IconData activeIcon,
+    String label,
+  ) {
     final isActive = _currentIndex == index;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final activeColor = AppTheme.primaryColor;
