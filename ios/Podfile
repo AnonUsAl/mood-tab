@@ -1,5 +1,8 @@
-# Uncomment this line to define a global platform for your project
-# platform :ios, '13.0'
+# 当前 Xcode 的 iOS SDK 只支持 15.0–27.0 的部署目标，低于 15.0 会直接报
+#   Target Integrity (Xcode): ... supported deployment target versions is 15.0 to 27.0.x
+# 并中断构建。所以这里必须显式指定 15.0，不能再留空让 CocoaPods 自动填 13.0。
+# 代价：iOS 13 / 14 不再支持（要支持只能换回旧版 Xcode 构建）。
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
@@ -39,5 +42,11 @@ end
 post_install do |installer|
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    # 逐个 pod target 也钉死部署目标。
+    # 各 pod 自己在 podspec 里写的值（本项目实际出现 9.0 / 12.0 / 13.0 三种）
+    # 都低于 Xcode 支持下限，会把整个构建拖挂，所以这里统一覆盖。
+    target.build_configurations.each do |config|
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
+    end
   end
 end
