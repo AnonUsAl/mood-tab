@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -28,6 +29,11 @@ class MoodRecordPage extends StatefulWidget {
 }
 
 class _MoodRecordPageState extends State<MoodRecordPage> {
+  /// 写库超时上限。超过这个时间还没返回就当作卡住，直接报给用户，
+  /// 而不是让他对着一个变灰的按钮干等 —— 「点了没反应」里有一部分
+  /// 其实是「永不返回」，光靠 try/catch 抓不到。
+  static const Duration _saveTimeout = Duration(seconds: 15);
+
   MoodType? _selectedMood;
   int _intensity = 3;
   final Set<String> _selectedTags = {};
@@ -646,30 +652,27 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
     final note = _noteController.text.trim();
     final diary = _diaryController.text.trim();
 
+    // 写库有「三种」结局：成功、抛异常、以及**永远不返回**。
+    // 第三种光靠 try/catch 抓不到，所以这里再加一道超时。
+    final pending = _persist(provider, note, diary);
     try {
-      if (_editingRecord != null) {
-        // 编辑模式：更新已有记录
-        final updated = _editingRecord!.copyWith(
-          moodType: _selectedMood!,
-          intensity: _intensity,
-          note: note.isEmpty ? null : note,
-          diary: diary.isEmpty ? null : diary,
-          diaryImages: _diaryImages,
-          tags: _selectedTags.toList(),
-        );
-        await provider.updateRecord(updated);
-      } else {
-        // 新建模式：新增记录
-        await provider.addRecord(
-          moodType: _selectedMood!,
-          intensity: _intensity,
-          note: note.isEmpty ? null : note,
-          diary: diary.isEmpty ? null : diary,
-          diaryImages: _diaryImages,
-          tags: _selectedTags.toList(),
-          createdAt: _backfillDate,
-        );
-      }
+      await pending.timeout(_saveTimeout);
+    } on TimeoutException {
+      // 超时之后原始写入仍在跑，可能过一会儿才真的落库。
+      // 把迟到的异常吞掉，别让它变成未处理的异步错误。
+      unawaited(pending.catchError((Object _) {}));
+      debugPrint('保存心情超时：${_saveTimeout.inSeconds}s');
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+      });
+      await _showSaveFailedDialog(
+        TimeoutException(
+          '写入超过 ${_saveTimeout.inSeconds} 秒没有返回，数据库可能卡住了。'
+          '这条记录也许仍在后台慢慢写，可以返回首页看一眼再决定要不要重试。',
+        ),
+      );
+      return;
     } catch (e, st) {
       // ⚠️ 这里以前完全没有错误处理：写库一旦失败就会停在「保存中」，
       // 既不弹提示也不返回，用户看到的只是「点了保存没反应」。
@@ -706,6 +709,39 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
         });
       }
     }
+  }
+
+  /// 真正落库的那一步。
+  ///
+  /// 单独抽出来是为了能对它整体加超时 —— 光包 try/catch 抓不到「永不返回」。
+  Future<void> _persist(MoodProvider provider, String note, String diary) {
+    final mood = _selectedMood!;
+    final tags = _selectedTags.toList();
+
+    if (_editingRecord != null) {
+      // 编辑模式：更新已有记录
+      return provider.updateRecord(
+        _editingRecord!.copyWith(
+          moodType: mood,
+          intensity: _intensity,
+          note: note.isEmpty ? null : note,
+          diary: diary.isEmpty ? null : diary,
+          diaryImages: _diaryImages,
+          tags: tags,
+        ),
+      );
+    }
+
+    // 新建模式：新增记录
+    return provider.addRecord(
+      moodType: mood,
+      intensity: _intensity,
+      note: note.isEmpty ? null : note,
+      diary: diary.isEmpty ? null : diary,
+      diaryImages: _diaryImages,
+      tags: tags,
+      createdAt: _backfillDate,
+    );
   }
 
   /// 保存失败时的提示：把真实原因摊开，并且允许一键复制。
