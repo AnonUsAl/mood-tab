@@ -99,7 +99,7 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
   set -e
   date '+   %H:%M:%S 结束'
   if [ "$rc" -ne 0 ]; then
-    echo "✗ 构建失败（exit=$rc），日志末尾：" >&2
+    echo "✗ 构建失败（exit=${rc}），日志末尾：" >&2
     tail -"$TAIL_LINES" /tmp/moodtab_apk_build.log >&2
     exit "$rc"
   fi
