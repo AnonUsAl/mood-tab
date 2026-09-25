@@ -215,19 +215,31 @@ class DatabaseService {
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // ⚠️ 迁移必须是**幂等**的：每一条都要能重复执行而不报错。
+    //
+    // 血泪教训（2026-09-26）：老用户的库是 v3，升到 v7 时
+    //   oldVersion < 5 → _createUrgeLogsTable() 用**最新**结构建了 urge_logs
+    //                     （里面已经有 title / image_path）
+    //   oldVersion < 6 → ALTER TABLE urge_logs ADD COLUMN title TEXT
+    //   → SqliteException(1): duplicate column name: title
+    // 整个 onUpgrade 事务回滚，user_version 永远停在 3 —— 于是**每次启动都失败**，
+    // 表现为页面全空 + 记录存不进去 + 日历一直转圈 + 导出没数据。
+    // 只要所有 ALTER 都写成「列不存在才加」，这类问题就不会再出现。
     if (oldVersion < 2) {
-      await db.execute('ALTER TABLE mood_records ADD COLUMN diary TEXT');
+      await _addColumnIfMissing(db, 'mood_records', 'diary', 'TEXT');
     }
     // v3 的 assessment_results 表已移除，测评改为 WebView 外链
     if (oldVersion < 4) {
       await db.execute('''
-        CREATE TABLE checkins (
+        CREATE TABLE IF NOT EXISTS checkins (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           date TEXT NOT NULL UNIQUE,
           created_at INTEGER NOT NULL
         )
       ''');
-      await db.execute('CREATE INDEX idx_checkins_date ON checkins(date)');
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_checkins_date ON checkins(date)',
+      );
     }
     if (oldVersion < 5) {
       // 新增自伤冲动监测日志表
@@ -236,14 +248,38 @@ class DatabaseService {
       await _normalizeCheckinDates(db);
     }
     if (oldVersion < 6) {
-      // 情绪安全记录支持事件名称与关联图片
-      await db.execute('ALTER TABLE urge_logs ADD COLUMN title TEXT');
-      await db.execute('ALTER TABLE urge_logs ADD COLUMN image_path TEXT');
+      // 情绪安全记录支持事件名称与关联图片。
+      // 注意：上面的 _createUrgeLogsTable 已经带上这两列了，
+      // 从更老的库（<5）一步升上来时这里必然会「重复加列」——
+      // 所以必须先判断再加。
+      await _addColumnIfMissing(db, 'urge_logs', 'title', 'TEXT');
+      await _addColumnIfMissing(db, 'urge_logs', 'image_path', 'TEXT');
     }
     if (oldVersion < 7) {
       // 日记支持关联多张图片
-      await db.execute('ALTER TABLE mood_records ADD COLUMN diary_images TEXT');
+      await _addColumnIfMissing(db, 'mood_records', 'diary_images', 'TEXT');
     }
+  }
+
+  /// 只在列不存在时才 `ALTER TABLE ... ADD COLUMN`。
+  ///
+  /// SQLite 没有 `ADD COLUMN IF NOT EXISTS`，只能先查 `PRAGMA table_info`。
+  /// 「建表语句已经带上新列、ALTER 又加一遍」是迁移路径上最容易踩的坑。
+  ///
+  /// 表名/列名全部来自本文件的字面量，不存在注入问题。
+  Future<void> _addColumnIfMissing(
+    Database db,
+    String table,
+    String column,
+    String type,
+  ) async {
+    final info = await db.rawQuery('PRAGMA table_info($table)');
+    final exists = info.any((row) => row['name'] == column);
+    if (exists) {
+      debugPrint('迁移跳过：$table.$column 已存在');
+      return;
+    }
+    await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
   }
 
   /// 把 checkins 表里旧的非补零日期（如 2026-7-6）迁移为补零格式（2026-07-06）。
