@@ -4,3 +4,6 @@
 /// —— 它依赖 dart:ffi，在 Web 构建里会直接编译失败。
 /// 条件导入（见 `database_service.dart`）保证只有原生平台会用到真实实现。
 void initDesktopDatabaseFactory() {}
+
+/// Web 上没有「桌面端数据库工厂」，自然也谈不上初始化失败。
+String? desktopDatabaseFactoryError;

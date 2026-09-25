@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'pages/home_page.dart';
 import 'pages/calendar_page.dart';
@@ -235,6 +236,7 @@ class MainScaffold extends StatefulWidget {
 
 class _MainScaffoldState extends State<MainScaffold> {
   int _currentIndex = 0;
+  bool _errorBannerDismissed = false;
 
   final List<Widget> _pages = const [
     HomePage(),
@@ -248,8 +250,18 @@ class _MainScaffoldState extends State<MainScaffold> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bottomBarColor = isDark ? AppTheme.darkCardBg : AppTheme.cardBg;
 
+    final dataError = context.select<MoodProvider, String?>((p) => p.dataError);
+    final showErrorBanner = dataError != null && !_errorBannerDismissed;
+
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _pages),
+      body: Column(
+        children: [
+          if (showErrorBanner) _buildDataErrorBanner(context, dataError),
+          Expanded(
+            child: IndexedStack(index: _currentIndex, children: _pages),
+          ),
+        ],
+      ),
       bottomNavigationBar: BottomAppBar(
         elevation: 0,
         color: bottomBarColor,
@@ -285,6 +297,62 @@ class _MainScaffoldState extends State<MainScaffold> {
                   Icons.person,
                   '我的',
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 本地数据库不可用时的顶部横幅。
+  ///
+  /// 桌面端（尤其 Windows）一旦数据库打不开，界面只会「一片空白 + 存不进去」，
+  /// 用户完全看不出原因，只会觉得「记录丢了 / 保存没反应」。
+  /// 这条横幅把原因摆到台面上，并且可以一键复制详情用于排查。
+  Widget _buildDataErrorBanner(BuildContext context, String detail) {
+    return Material(
+      color: const Color(0xFFB3261E),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.storage_outlined,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  '本地数据库不可用，记录读不到也存不进去。点右侧按钮可复制原因。',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: '复制详情',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.copy, color: Colors.white, size: 18),
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: detail));
+                  if (!context.mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('已复制失败详情')),
+                  );
+                },
+              ),
+              IconButton(
+                tooltip: '先忽略',
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                onPressed: () => setState(() => _errorBannerDismissed = true),
               ),
             ],
           ),

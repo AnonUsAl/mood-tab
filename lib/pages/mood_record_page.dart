@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -8,6 +9,7 @@ import '../models/mood_record.dart';
 import '../models/mood_tag.dart';
 import '../models/mood_type.dart';
 import '../providers/mood_provider.dart';
+import '../services/database_service.dart';
 import '../theme/app_theme.dart';
 import 'crisis_support_page.dart';
 
@@ -630,9 +632,12 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
       );
       return;
     }
+    if (_isSaving) return;
 
     final needsSupport = _needsCrisisSupport();
     final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final provider = context.read<MoodProvider>();
 
     setState(() {
       _isSaving = true;
@@ -641,32 +646,45 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
     final note = _noteController.text.trim();
     final diary = _diaryController.text.trim();
 
-    if (_editingRecord != null) {
-      // 编辑模式：更新已有记录
-      final updated = _editingRecord!.copyWith(
-        moodType: _selectedMood!,
-        intensity: _intensity,
-        note: note.isEmpty ? null : note,
-        diary: diary.isEmpty ? null : diary,
-        diaryImages: _diaryImages,
-        tags: _selectedTags.toList(),
-      );
-      await context.read<MoodProvider>().updateRecord(updated);
-    } else {
-      // 新建模式：新增记录
-      await context.read<MoodProvider>().addRecord(
-            moodType: _selectedMood!,
-            intensity: _intensity,
-            note: note.isEmpty ? null : note,
-            diary: diary.isEmpty ? null : diary,
-            diaryImages: _diaryImages,
-            tags: _selectedTags.toList(),
-            createdAt: _backfillDate,
-          );
+    try {
+      if (_editingRecord != null) {
+        // 编辑模式：更新已有记录
+        final updated = _editingRecord!.copyWith(
+          moodType: _selectedMood!,
+          intensity: _intensity,
+          note: note.isEmpty ? null : note,
+          diary: diary.isEmpty ? null : diary,
+          diaryImages: _diaryImages,
+          tags: _selectedTags.toList(),
+        );
+        await provider.updateRecord(updated);
+      } else {
+        // 新建模式：新增记录
+        await provider.addRecord(
+          moodType: _selectedMood!,
+          intensity: _intensity,
+          note: note.isEmpty ? null : note,
+          diary: diary.isEmpty ? null : diary,
+          diaryImages: _diaryImages,
+          tags: _selectedTags.toList(),
+          createdAt: _backfillDate,
+        );
+      }
+    } catch (e, st) {
+      // ⚠️ 这里以前完全没有错误处理：写库一旦失败就会停在「保存中」，
+      // 既不弹提示也不返回，用户看到的只是「点了保存没反应」。
+      // 失败必须说出来，而且要带上可复制的细节，否则没法定位。
+      debugPrint('保存心情失败: $e\n$st');
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+      });
+      await _showSaveFailedDialog(e);
+      return;
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text(_editingRecord != null
               ? '${_selectedMood!.emoji} 已修改心情记录'
@@ -688,5 +706,72 @@ class _MoodRecordPageState extends State<MoodRecordPage> {
         });
       }
     }
+  }
+
+  /// 保存失败时的提示：把真实原因摊开，并且允许一键复制。
+  ///
+  /// 内容不会丢 —— 用户仍停在这个页面上，可以复制出去再重试。
+  Future<void> _showSaveFailedDialog(Object error) async {
+    final detail = _saveFailureDetail(error);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('没能保存'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '这条心情没有写进本地数据库。内容还留在这个页面上，'
+                  '可以先复制出来，再重试一次。',
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.cardBgOf(dialogContext),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SelectableText(
+                    detail,
+                    style: const TextStyle(fontSize: 12, height: 1.5),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: detail));
+                if (!dialogContext.mounted) return;
+                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                  const SnackBar(content: Text('已复制失败详情')),
+                );
+              },
+              child: const Text('复制详情'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('知道了'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 拼出这次失败的可读报告：原始异常 + 数据库现状。
+  String _saveFailureDetail(Object error) {
+    return [
+      '时间：${DateTime.now()}',
+      '错误：$error',
+      '',
+      '--- 数据库状态 ---',
+      DatabaseService().diagnostics(),
+    ].join('\n');
   }
 }

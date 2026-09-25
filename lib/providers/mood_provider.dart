@@ -21,6 +21,12 @@ class MoodProvider extends ChangeNotifier {
   List<MoodRecord> _diaryRecords = [];
   bool _isLoading = false;
 
+  /// 数据层最近一次失败的原因（数据库打不开等）；正常时为 null。
+  ///
+  /// 以前这里只有 debugPrint，桌面端数据库出问题时界面只是空白，
+  /// 用户看不到任何线索，保存也会静默失败。
+  String? _dataError;
+
   /// 主题模式：'light' 或 'dark'
   String _themeMode = 'light';
 
@@ -45,6 +51,9 @@ class MoodProvider extends ChangeNotifier {
   List<MoodRecord> get todayRecords => _todayRecords;
   List<MoodRecord> get diaryRecords => _diaryRecords;
   bool get isLoading => _isLoading;
+
+  /// 数据层最近一次失败原因；正常时为 null。
+  String? get dataError => _dataError;
   String get themeMode => _themeMode;
 
   /// 当 themeMode 为 'system' 时，isDarkMode 无法独立判断系统暗色状态，
@@ -80,6 +89,9 @@ class MoodProvider extends ChangeNotifier {
   /// 和设置页负责，避免下拉刷新或写入记录时产生多余的通知重排。
   Future<void> loadAllData() async {
     _setLoading(true);
+
+    // 偏好设置（昵称、主题、药物清单……）失败不该连累下面的记录读取，
+    // 所以单独包一层；出错只是少几个设置项。
     try {
       await _prefs.init();
       _themeMode = _prefs.themeMode;
@@ -87,13 +99,43 @@ class MoodProvider extends ChangeNotifier {
       _userAvatarPath = _prefs.userAvatarPath;
       _medications = _prefs.getMedications();
       MoodTags.setCustomTags(_prefs.getCustomTags());
+    } catch (e) {
+      debugPrint('读取偏好设置失败: $e');
+    }
+
+    // 记录 / 打卡 / 冲动日志都来自本地数据库。这里失败必须留下痕迹，
+    // 不能再像以前那样 catch 掉只打日志 —— 那样桌面端一旦数据库打不开，
+    // 界面就只是「空 + 存不进去」，看不出任何原因。
+    try {
       await _reloadRecords();
       await _reloadCheckinState();
       await _reloadUrgeLogs();
+      _dataError = null;
     } catch (e) {
-      debugPrint('loadAllData error: $e');
+      _dataError = describeDataError(e);
+      debugPrint('读取本地数据库失败: $e');
     } finally {
       _setLoading(false);
+    }
+  }
+
+  /// 把数据层异常整理成一句能给用户看的话。
+  static String describeDataError(Object error) {
+    if (error is DatabaseUnavailableException) return error.message;
+    return '$error';
+  }
+
+  /// 写入成功后刷新内存列表。
+  ///
+  /// 刷新失败不代表没写进去，所以这里不外抛 —— 否则「已经保存成功、
+  /// 只是列表没刷新」会被界面报成保存失败，反而误导用户。
+  Future<void> _refreshRecordsQuietly() async {
+    try {
+      await _reloadRecords();
+      _dataError = null;
+    } catch (e) {
+      _dataError = describeDataError(e);
+      debugPrint('刷新记录列表失败: $e');
     }
   }
 
@@ -256,22 +298,24 @@ class MoodProvider extends ChangeNotifier {
       tags: tags,
       createdAt: createdAt ?? DateTime.now(),
     );
+    // 写库失败会把异常抛给调用方（记录页据此提示用户）；
+    // 写成功之后的列表刷新失败只记录，不再当成保存失败。
     await _dbService.insertRecord(record);
-    await _reloadRecords();
+    await _refreshRecordsQuietly();
     notifyListeners();
   }
 
   /// 更新一条已有记录
   Future<void> updateRecord(MoodRecord record) async {
     await _dbService.updateRecord(record);
-    await _reloadRecords();
+    await _refreshRecordsQuietly();
     notifyListeners();
   }
 
   /// 删除一条记录
   Future<void> deleteRecord(int id) async {
     await _dbService.deleteRecord(id);
-    await _reloadRecords();
+    await _refreshRecordsQuietly();
     notifyListeners();
   }
 

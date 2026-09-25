@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -7,6 +8,23 @@ import '../models/urge_log.dart';
 import 'database_factory_stub.dart'
     if (dart.library.io) 'database_factory_io.dart';
 
+/// 本地数据库不可用（打开失败、原生库缺失、目录不可写……）。
+///
+/// 单独一个类型是为了让界面层能一眼认出「这是数据层的问题」，
+/// 而不是把一句底层 ffi 异常直接甩给用户。
+class DatabaseUnavailableException implements Exception {
+  /// 已经整理过、可以直接显示给用户看的多行说明。
+  final String message;
+
+  /// 尝试打开过的库文件路径。
+  final String? path;
+
+  const DatabaseUnavailableException(this.message, {this.path});
+
+  @override
+  String toString() => message;
+}
+
 /// 本地 SQLite 数据库服务
 /// 所有数据 100% 存储在设备本地，绝不上传云端
 class DatabaseService {
@@ -15,6 +33,14 @@ class DatabaseService {
   DatabaseService._internal();
 
   Database? _database;
+
+  /// 当前使用的库文件完整路径（打开成功后才有值）。
+  String? _databasePath;
+  String? get databasePath => _databasePath;
+
+  /// 最近一次打开数据库失败的原因；成功时为 null。
+  String? _lastOpenError;
+  String? get lastOpenError => _lastOpenError;
 
   /// 正在进行中的首次初始化。
   ///
@@ -46,15 +72,99 @@ class DatabaseService {
   Future<Database> _initDatabase() async {
     // Windows / Linux 上 sqflite 没有原生实现，必须先切到 FFI 工厂；
     // 其他平台这里是空操作。
+    // ⚠️ 这里不吞异常：桌面端原生 sqlite3 库缺失时必须在这一步炸出来，
+    // 否则会退化成「页面全空 + 记录存不进去」这种看不出原因的状态。
     initDesktopDatabaseFactory();
-    final documentsDir = await getApplicationDocumentsDirectory();
-    final dbPath = p.join(documentsDir.path, 'mood_tab.db');
-    return await openDatabase(
-      dbPath,
-      version: 7,
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
-    );
+
+    // 只收路径字符串，不引 dart:io 的类型，Web 构建也能过。
+    final candidateDirs = <String>[];
+    try {
+      candidateDirs.add((await getApplicationDocumentsDirectory()).path);
+    } catch (e) {
+      debugPrint('取用户文档目录失败: $e');
+    }
+    try {
+      candidateDirs.add((await getApplicationSupportDirectory()).path);
+    } catch (e) {
+      debugPrint('取应用支持目录失败: $e');
+    }
+
+    if (candidateDirs.isEmpty) {
+      _lastOpenError = '拿不到任何可写入的数据目录，本地数据库无法使用。';
+      throw DatabaseUnavailableException(_lastOpenError!);
+    }
+
+    // 兜底目录只在首选目录还从没建过库文件时才用。
+    // 已经有库文件却打不开时绝不换目录 —— 换目录等于换一个空库，
+    // 用户会以为以前的记录全丢了。
+    final dbPaths = candidateDirs.map((d) => p.join(d, 'mood_tab.db')).toList();
+    final usable = await _databaseFileExists(dbPaths.first)
+        ? dbPaths.take(1).toList()
+        : dbPaths;
+
+    Object? lastError;
+    final tried = <String>[];
+    for (final dbPath in usable) {
+      tried.add(dbPath);
+      try {
+        final db = await openDatabase(
+          dbPath,
+          version: 7,
+          onCreate: _onCreate,
+          onUpgrade: _onUpgrade,
+        );
+        _databasePath = dbPath;
+        _lastOpenError = null;
+        return db;
+      } catch (e, st) {
+        lastError = e;
+        debugPrint('打开数据库失败（$dbPath）: $e\n$st');
+      }
+    }
+
+    _lastOpenError = _describeOpenFailure(lastError, tried);
+    throw DatabaseUnavailableException(_lastOpenError!, path: tried.first);
+  }
+
+  /// 库文件是否已经存在。探测本身出错就当「不存在」，不影响主流程。
+  Future<bool> _databaseFileExists(String dbPath) async {
+    try {
+      return await databaseFactory.databaseExists(dbPath);
+    } catch (e) {
+      debugPrint('检查数据库文件是否存在失败: $e');
+      return false;
+    }
+  }
+
+  /// 把打开失败整理成能给用户看的说明。
+  String _describeOpenFailure(Object? error, List<String> triedPaths) {
+    final buffer = StringBuffer('本地数据库打开失败，记录暂时读不到，也存不进去。');
+    buffer.write('\n\n尝试过的文件：');
+    for (final path in triedPaths) {
+      buffer.write('\n· $path');
+    }
+
+    final factoryError = desktopDatabaseFactoryError;
+    if (factoryError != null) {
+      buffer.write('\n\n$factoryError');
+    } else {
+      buffer.write(
+        '\n\n数据库工厂初始化正常，问题出在打开文件这一步。'
+        '常见原因：文件被占用（上次没退出干净）、没有写权限、磁盘已满。',
+      );
+    }
+
+    buffer.write('\n\n原始错误：$error');
+    return buffer.toString();
+  }
+
+  /// 给用户看的诊断摘要（保存失败时随错误提示一起显示，便于定位）。
+  String diagnostics() {
+    return [
+      '数据库已就绪：${_database != null ? '是' : '否'}',
+      '库文件路径：${_databasePath ?? '（尚未打开）'}',
+      '打开失败原因：${_lastOpenError ?? '无'}',
+    ].join('\n');
   }
 
   Future<void> _onCreate(Database db, int version) async {
