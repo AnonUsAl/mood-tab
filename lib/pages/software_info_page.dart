@@ -152,6 +152,18 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v3.0.18',
+        date: '2026-09',
+        changes: [
+          '🐛 修复「本地数据库打开失败，记录读不到也存不进去」的根本原因 — 数据库升级迁移改为幂等，旧版本升级上来的库不再因重复加列而报错，此前每次启动都会失败',
+          '🐛 修复保存心情失败时界面毫无反应、只留下一个无法点击的按钮的问题 — 现在会明确弹出错误详情，可一键复制',
+          '🐛 修复数据层出错被静默吞掉的问题 — 首页新增红色提示条，可直接查看并复制失败原因',
+          '✨ 保存流程新增 15 秒超时保护，写入卡住时也会给出提示，不再无限等待',
+          '✨ 新增数据库诊断信息（库文件路径、打开失败原因、本地数据库组件状态），便于排查环境问题',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
         version: 'v3.0.17',
         date: '2026-09',
         changes: [
@@ -164,7 +176,6 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
           '✨ 桌面端窗口现在可以任意缩放，窗口过小时内容自动变为可滚动',
           '✨ 心理测评、栖所等网页内容在桌面端改为用系统浏览器打开，新增三平台一键打包脚本',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v3.0.16',
