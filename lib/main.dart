@@ -13,6 +13,7 @@ import 'providers/mood_provider.dart';
 import 'services/preferences_service.dart';
 import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
+import 'utils/pin_code.dart';
 import 'widgets/desktop_viewport.dart';
 
 void main() {
@@ -86,14 +87,30 @@ class _AppEntranceState extends State<_AppEntrance>
     super.dispose();
   }
 
+  /// 是否需要上锁：开关已开 + 存的 PIN 是合法值。
+  ///
+  /// 只把上锁挂在 [didChangeAppLifecycleState] 上是不够的 ——
+  /// Windows 上「关闭窗口」是**直接结束进程**，根本不会有 paused / hidden 回调，
+  /// 于是设过 PIN 的用户重新打开应用时完全不会被要求输入密码，
+  /// 表现就是「设了密码也没用」（手机端进程被系统回收后重新启动同理）。
+  /// 所以冷启动也要走一次这个判断。
+  bool get _shouldLock =>
+      _preferences.privacyLockEnabled && isValidPin(_preferences.pinCode);
+
+  /// 在已登录态之外补一次上锁。必须在 `setState` 里调用。
+  void _lockIfNeeded() {
+    if (!_isLocked && _shouldLock) {
+      _isLocked = true;
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_preferencesReady || _showSplash) return;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
-      final hasValidPin = _preferences.pinCode.length == 4;
-      if (_preferences.privacyLockEnabled && hasValidPin && !_isLocked) {
-        setState(() => _isLocked = true);
+      if (!_isLocked) {
+        setState(_lockIfNeeded);
       }
     }
   }
@@ -135,6 +152,11 @@ class _AppEntranceState extends State<_AppEntrance>
     setState(() {
       _showSplash = false;
       _preferencesReady = true;
+      // 冷启动上锁。首次启动时隐私协议还没同意，这里先不锁，
+      // 等协议页 / 作者信息页走完再补（见下面两处 onAccept / onContinue）。
+      if (_preferences.privacyPolicyAccepted) {
+        _lockIfNeeded();
+      }
     });
 
     // 首次启动：检查隐私协议是否已同意
@@ -186,7 +208,10 @@ class _AppEntranceState extends State<_AppEntrance>
       return AuthorInfoPage(
         onContinue: () async {
           await _preferences.setAuthorInfoShown(true);
-          setState(() => _showAuthorInfo = false);
+          setState(() {
+            _showAuthorInfo = false;
+            _lockIfNeeded();
+          });
         },
       );
     }

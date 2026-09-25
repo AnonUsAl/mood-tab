@@ -1,7 +1,7 @@
 name: mood_tab
 description: "mood-tab 是一款专注于治愈与陪伴的跨平台个人情绪记录软件。本地数据库存储，100% 不上传云端。"
 publish_to: 'none'
-version: 3.0.16+47
+version: 3.0.17+48
 
 environment:
   # flutter_local_notifications 22.x 与 timezone 0.10+ 都要求 Dart ^3.10.0

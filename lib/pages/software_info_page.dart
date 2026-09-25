@@ -152,6 +152,21 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v3.0.17',
+        date: '2026-09',
+        changes: [
+          '🐛 修复桌面端导出功能不可用的问题 — CSV / PDF / 数据备份改为系统「另存为」对话框，移动端保留系统分享',
+          '🐛 修复导出的 PDF 中文字符显示为空白的问题 — 改为优先使用系统自带中文字体，联网下载仅作兜底',
+          '🐛 修复 macOS 版缺少沙箱文件读写与联网权限，导致导出、数据恢复与网页功能异常的问题',
+          '🐛 修复隐私锁在重新打开应用时不生效的问题 — 冷启动现在也会要求输入 PIN',
+          '🐛 修复日历页月份数据一直加载不出来的问题 — 日历与首页共用同一数据源',
+          '🐛 修复桌面端本地提醒通知不触发的问题',
+          '✨ 桌面端窗口现在可以任意缩放，窗口过小时内容自动变为可滚动',
+          '✨ 心理测评、栖所等网页内容在桌面端改为用系统浏览器打开，新增三平台一键打包脚本',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
         version: 'v3.0.16',
         date: '2026-09',
         changes: [
@@ -159,7 +174,6 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
           '🐛 修复栖所网页内容过于靠近顶部栏的问题',
           '🐛 修复 Android release 构建中通知调度组件可能被 R8 裁剪的问题',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v3.0.15',

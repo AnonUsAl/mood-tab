@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
+import '../utils/pin_code.dart';
 
 class PrivacyLockPage extends StatefulWidget {
   const PrivacyLockPage({
@@ -37,8 +38,11 @@ class _PrivacyLockPageState extends State<PrivacyLockPage> {
   }
 
   void _verifyPin(String value) {
-    if (value.length != 4) return;
-    if (value == widget.expectedPin) {
+    if (value.length != kPinLength) return;
+    // 期望值也做一次规范化：历史版本可能把全角数字存了进去，
+    // 那样半角输入永远比对不上，会被误判成「密码错误」。
+    if (value == widget.expectedPin ||
+        value == normalizePinInput(widget.expectedPin)) {
       widget.onUnlocked();
       return;
     }

@@ -8,5 +8,11 @@
 	<true/>
 	<key>com.apple.security.network.server</key>
 	<true/>
+	<!-- 导出：用户通过「另存为」对话框选中的文件要能写；数据恢复要能读用户选的文件 -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<!-- 联网：PDF 中文字体下载兜底、心理测评/栖所网页、Google Fonts -->
+	<key>com.apple.security.network.client</key>
+	<true/>
 </dict>
 </plist>

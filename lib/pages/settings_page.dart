@@ -1,24 +1,23 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import '../models/mood_type.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../providers/mood_provider.dart';
+import '../services/cjk_font_service.dart';
 import '../services/database_service.dart';
+import '../services/export_service.dart';
 import '../services/preferences_service.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
+import '../utils/pin_code.dart';
 import 'about_page.dart';
 import 'software_info_page.dart';
 import 'assessment_web_page.dart';
@@ -714,7 +713,7 @@ class _SettingsPageState extends State<SettingsPage> {
               // 开启时需要设置 PIN
               final pin = await _showPinSetupDialog();
               if (pin != null && pin.length == 4) {
-                await _prefs.setPinCode(pin);
+                await _prefs.setPinCode(normalizePinInput(pin));
                 await _prefs.setPrivacyLockEnabled(true);
                 setState(() {
                   _privacyLockEnabled = true;
@@ -807,7 +806,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _changePin() async {
     final pin = await _showPinSetupDialog();
     if (pin != null && pin.length == 4) {
-      await _prefs.setPinCode(pin);
+      await _prefs.setPinCode(normalizePinInput(pin));
       _showSnackBar('PIN 码已更新');
     }
   }
@@ -1240,13 +1239,15 @@ class _SettingsPageState extends State<SettingsPage> {
             '$date,$time,$mood,$intensity,$note,$tags,$diary,$diaryImages');
       }
 
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/mood_tab_export.csv');
-      await file.writeAsString(buffer.toString(), encoding: const Utf8Codec());
-
-      await Share.shareXFiles([XFile(file.path)], text: '脑电波 情绪记录导出');
+      final path = await ExportService.save(
+        fileName: 'mood_tab_export.csv',
+        bytes: utf8.encode(buffer.toString()),
+        dialogTitle: '导出 CSV',
+        allowedExtensions: ['csv'],
+      );
+      await _afterExport(path, '情绪记录已导出为 CSV');
     } catch (e) {
-      _showSnackBar('导出失败：$e');
+      _showSnackBar('导出失败：${_exportErrorMessage(e)}');
     }
   }
 
@@ -1270,9 +1271,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
       final pdf = pw.Document();
 
-      // 尝试多种方式加载中文字体
+      // 中文字体：优先系统自带字体（离线可用），联网下载只作兜底
       pw.Font? font;
-      final fontData = await _loadCjkFont();
+      final fontData = await CjkFontService.load();
       if (fontData != null) {
         font = pw.Font.ttf(fontData);
       }
@@ -1326,49 +1327,16 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       );
 
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/mood_tab_report.pdf');
-      await file.writeAsBytes(await pdf.save());
-
-      await Share.shareXFiles([XFile(file.path)], text: '脑电波 情绪记录报告');
+      final path = await ExportService.save(
+        fileName: 'mood_tab_report.pdf',
+        bytes: await pdf.save(),
+        dialogTitle: '导出 PDF 报告',
+        allowedExtensions: ['pdf'],
+      );
+      await _afterExport(path, '情绪记录报告已导出为 PDF');
     } catch (e) {
-      _showSnackBar('导出失败：$e');
+      _showSnackBar('导出失败：${_exportErrorMessage(e)}');
     }
-  }
-
-  Future<ByteData?> _loadCjkFont() async {
-    try {
-      final dir = await getApplicationDocumentsDirectory();
-      final cacheFile = File('${dir.path}/cjk_font.ttf');
-
-      if (await cacheFile.exists()) {
-        return await cacheFile.readAsBytes().then((b) => b.buffer.asByteData());
-      }
-
-      final urls = [
-        'https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400',
-      ];
-
-      for (final cssUrl in urls) {
-        final cssResponse = await http.get(Uri.parse(cssUrl));
-        if (cssResponse.statusCode == 200) {
-          final cssContent = cssResponse.body;
-          final ttfUrlMatch = RegExp(r'url\(([^)]+)\)').firstMatch(cssContent);
-          if (ttfUrlMatch != null) {
-            var ttfUrl = ttfUrlMatch.group(1)!;
-            if (ttfUrl.startsWith('//')) {
-              ttfUrl = 'https:$ttfUrl';
-            }
-            final ttfResponse = await http.get(Uri.parse(ttfUrl));
-            if (ttfResponse.statusCode == 200) {
-              await cacheFile.writeAsBytes(ttfResponse.bodyBytes);
-              return ttfResponse.bodyBytes.buffer.asByteData();
-            }
-          }
-        }
-      }
-    } catch (_) {}
-    return null;
   }
 
   Future<void> _backupData() async {
@@ -1380,15 +1348,82 @@ class _SettingsPageState extends State<SettingsPage> {
       }
 
       final jsonStr = const JsonEncoder.withIndent('  ').convert(data);
-      final dir = await getTemporaryDirectory();
-      final file = File(
-          '${dir.path}/mood_tab_backup_${DateTime.now().millisecondsSinceEpoch}.json');
-      await file.writeAsString(jsonStr);
+      final stamp = DateTime.now()
+          .toIso8601String()
+          .substring(0, 19)
+          .replaceAll(':', '')
+          .replaceAll('T', '-');
 
-      await Share.shareXFiles([XFile(file.path)], text: '脑电波 数据备份');
+      final path = await ExportService.save(
+        fileName: 'mood_tab_backup_$stamp.json',
+        bytes: utf8.encode(jsonStr),
+        dialogTitle: '导出数据备份',
+        allowedExtensions: ['json'],
+      );
+      await _afterExport(path, '数据备份已导出为 JSON');
     } catch (e) {
-      _showSnackBar('备份失败：$e');
+      _showSnackBar('备份失败：${_exportErrorMessage(e)}');
     }
+  }
+
+  /// 导出完成后的收尾：
+  /// 桌面端弹一个「导出成功」对话框（路径可选中复制 + 打开所在文件夹），
+  /// 移动端弹 SnackBar（文件已经交给系统分享面板了）。
+  Future<void> _afterExport(String? path, String message) async {
+    if (path == null) return; // 用户取消了「另存为」
+    if (!mounted) return;
+
+    if (!ExportService.isDesktop) {
+      _showSnackBar(message);
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('导出成功'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message),
+            const SizedBox(height: 12),
+            SelectableText(
+              path,
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              final opened = await ExportService.revealInFileManager(path);
+              if (!dialogContext.mounted) return;
+              Navigator.of(dialogContext).pop();
+              if (!opened) {
+                _showSnackBar('无法自动打开文件夹，请手动前往上面的路径');
+              }
+            },
+            child: const Text('打开所在文件夹'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('好'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 把导出/备份的异常翻译成人话（写盘失败最常见的是文件被占用）。
+  String _exportErrorMessage(Object error) {
+    if (error is FileSystemException) {
+      final reason = error.osError?.errorCode;
+      if (reason == 32 || reason == 33 || reason == 5) {
+        return '文件可能正被其他程序占用（比如已用 Excel 打开），请换个文件名或先关闭它';
+      }
+    }
+    return '$error';
   }
 
   Future<void> _restoreData() async {
