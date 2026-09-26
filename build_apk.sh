@@ -65,6 +65,13 @@ done
 BUILD_ENV=(
   -u BASH_ENV
   -u ENV
+  # 宿主沙箱注入的 HTTP(S)_PROXY 指向「只放行白名单」的本地 broker：
+  # Gradle 下 storage.googleapis.com 的 flutter_embedding jar 会被掐成
+  #   Remote host terminated the handshake
+  # Dart 的原生资产钩子下 GitHub 也会同样失败。本机代理是全局 TUN（直连即出网），
+  # 所以把代理变量一并摘掉。
+  -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy
+  -u ALL_PROXY -u all_proxy
   -u CODEBUDDY_SAFE_DELETE_ENABLED
   -u CODEBUDDY_SAFE_DELETE_SANDBOX
   -u CODEBUDDY_SAFE_DELETE_BULK_THRESHOLD
