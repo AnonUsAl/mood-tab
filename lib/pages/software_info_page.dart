@@ -152,13 +152,22 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v3.0.20',
+        date: '2026-09',
+        changes: [
+          '✨ 新增「公益心理辅助」入口 —— 接入 MHOP 公益心理辅助平台，提供免费的心理支持资源，设置页「更多」中可直接进入',
+          '🐛 修复打开内置网页（栖所 / 心理测评 / 公益心理辅助 / 关于作者）时，网页自己的顶部导航栏压住系统状态栏时间的问题',
+          '📝 更正说明：上一版把 macOS 版网页空白的原因记成了「Impeller 渲染引擎」，实际与渲染引擎无关 —— 真正的原因是网页背景设置接口在 macOS 上不受支持，异常抛出后导致整页构建失败。该问题已在上一版修复，这里只更正说明，功能不变',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
         version: 'v3.0.19',
         date: '2026-09',
         changes: [
           '🐛 修复 macOS 版所有网页（栖所 / 心理测评 / 团队官网 / 关于作者）打开后一片空白的问题 —— 上一版随新版打包工具把渲染引擎换成了 Impeller，而它在 macOS 上画不出网页控件；macOS 端已退回原先的 Skia 渲染（此前那次「补沙箱权限」的修复判断有误，与此无关）',
           '🐛 修复 macOS 版「关于作者」本地页面加载失败的问题 —— 改为先把页面释放到本地再加载，不再依赖在 macOS 上不可靠的资源查找',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v3.0.18',
