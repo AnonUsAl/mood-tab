@@ -152,6 +152,15 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
   Widget _buildChangelogCard(bool isDark) {
     final versions = [
       _ChangelogEntry(
+        version: 'v3.0.19',
+        date: '2026-09',
+        changes: [
+          '🐛 修复 macOS 版所有网页（栖所 / 心理测评 / 团队官网 / 关于作者）打开后一片空白的问题 —— 上一版随新版打包工具把渲染引擎换成了 Impeller，而它在 macOS 上画不出网页控件；macOS 端已退回原先的 Skia 渲染（此前那次「补沙箱权限」的修复判断有误，与此无关）',
+          '🐛 修复 macOS 版「关于作者」本地页面加载失败的问题 —— 改为先把页面释放到本地再加载，不再依赖在 macOS 上不可靠的资源查找',
+        ],
+        isLatest: true,
+      ),
+      _ChangelogEntry(
         version: 'v3.0.18',
         date: '2026-09',
         changes: [
@@ -161,7 +170,6 @@ class _SoftwareInfoPageState extends State<SoftwareInfoPage> {
           '✨ 保存流程新增 15 秒超时保护，写入卡住时也会给出提示，不再无限等待',
           '✨ 新增数据库诊断信息（库文件路径、打开失败原因、本地数据库组件状态），便于排查环境问题',
         ],
-        isLatest: true,
       ),
       _ChangelogEntry(
         version: 'v3.0.17',
