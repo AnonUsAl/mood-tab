@@ -13,12 +13,16 @@ import 'pages/author_info_page.dart';
 import 'providers/mood_provider.dart';
 import 'services/preferences_service.dart';
 import 'services/notification_service.dart';
+import 'services/webview_diag.dart';
 import 'theme/app_theme.dart';
 import 'utils/pin_code.dart';
 import 'widgets/desktop_viewport.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // 先装诊断再去 build 界面：网页控件（平台视图）创建失败是**静默**的，
+  // 必须在那之前接住 FlutterError，否则又会是一句「一片空白，没有任何字」。
+  WebViewDiag.install();
   runApp(const MoodTabApp());
 }
 

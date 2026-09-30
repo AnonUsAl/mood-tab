@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../services/webview_diag.dart';
 import '../theme/app_theme.dart';
 import '../widgets/webview_support.dart';
 
@@ -16,33 +18,88 @@ class TeamPage extends StatefulWidget {
 class _TeamPageState extends State<TeamPage> {
   static const _teamUrl = 'https://www.cldery.com/';
 
+  static const List<ExternalOpenTarget> _externalTargets = [
+    ExternalOpenTarget(
+      label: '打开官网',
+      description: 'www.cldery.com',
+      icon: Icons.language,
+      url: _teamUrl,
+    ),
+  ];
+
   WebViewController? _controller;
   bool _isLoading = true;
+  WebViewWatchdog? _watch;
 
   @override
   void initState() {
     super.initState();
-    if (!isEmbeddedWebViewSupported) return;
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFFF8F6FF))
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageFinished: (_) {
-            if (!mounted) return;
-            setState(() {
-              _isLoading = false;
-            });
-          },
-          onWebResourceError: (_) {
-            if (!mounted) return;
-            setState(() {
-              _isLoading = false;
-            });
-          },
+    _watch = WebViewDiag.watch('云术工作室');
+    if (!isEmbeddedWebViewSupported) {
+      WebViewDiag.record(
+        '云术工作室',
+        '当前平台 $defaultTargetPlatform 没有内嵌 WebView 实现，改走系统浏览器',
+      );
+      return;
+    }
+    try {
+      final WebViewController controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageFinished: (url) {
+              _watch?.seen('onPageFinished url=$url');
+              if (!mounted) return;
+              setState(() {
+                _isLoading = false;
+              });
+            },
+            onWebResourceError: (error) {
+              _watch?.failed(
+                'onWebResourceError code=${error.errorCode} '
+                'type=${error.errorType} url=${error.url} '
+                'mainFrame=${error.isForMainFrame} desc=${error.description}',
+              );
+              if (!mounted) return;
+              setState(() {
+                _isLoading = false;
+              });
+              _notifyExternalFallback();
+            },
+          ),
+        );
+      // ⚠️ 必须走这个包装：setBackgroundColor 在 macOS 上会同步抛异常，
+      // 直接写进级联会让整个 initState 抛、整页变空白（详见 webview_support.dart）
+      applyWebViewBackground(controller, const Color(0xFFF8F6FF));
+      controller.loadRequest(Uri.parse(_teamUrl));
+      _controller = controller;
+    } catch (e, stack) {
+      // 建不出来就不留一页空白：记下原因，界面回落到系统浏览器兜底页
+      WebViewDiag.problem('云术工作室', '创建网页控件失败：$e', stack: stack);
+      _controller = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _watch?.dispose();
+    super.dispose();
+  }
+
+  /// 加载失败不再默默留一片空白，而是直接给一条走得通的路。
+  void _notifyExternalFallback() {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text('网页没能加载出来'),
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(
+          label: '用浏览器打开',
+          onPressed: () => openUrlExternally(_teamUrl),
         ),
-      )
-      ..loadRequest(Uri.parse(_teamUrl));
+      ),
+    );
   }
 
   @override
@@ -64,6 +121,10 @@ class _TeamPageState extends State<TeamPage> {
           ),
         ),
         actions: [
+          const WebViewDiagButton(
+            pageTitle: '云术工作室',
+            targets: _externalTargets,
+          ),
           if (controller != null)
             Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -97,7 +158,8 @@ class _TeamPageState extends State<TeamPage> {
             )
           : Stack(
               children: [
-                WebViewWidget(controller: controller),
+                // 平台视图要拿到确定尺寸才画得出来，Stack 里必须显式铺满
+                Positioned.fill(child: WebViewWidget(controller: controller)),
                 if (_isLoading)
                   Container(
                     color: AppTheme.scaffoldBgOf(context),

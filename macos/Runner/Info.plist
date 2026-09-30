@@ -28,5 +28,14 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<!-- 关掉 macOS 的 Impeller，退回 Skia。
+	     Flutter 3.47 起 Impeller 成为桌面端默认渲染器，但 macOS + Impeller 下
+	     platform view（WebView）**完全不渲染** —— 栖所 / 心理测评 / 团队官网 /
+	     关于作者 全部只剩一片空白（加载回调照常触发，所以连转圈都不剩）。
+	     上游 issue flutter/flutter#170213 仍是 open、无修复 PR，官方给的部署期
+	     退路就是 Info.plist 里这一条。等上游修好、或本项目改用系统浏览器打开
+	     网页之后，可以删掉这个键。 -->
+	<key>FLTEnableImpeller</key>
+	<false/>
 </dict>
 </plist>
