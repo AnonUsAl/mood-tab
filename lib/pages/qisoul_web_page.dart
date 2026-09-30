@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import '../services/webview_diag.dart';
 import '../theme/app_theme.dart';
 import '../widgets/webview_support.dart';
 
@@ -16,38 +18,93 @@ class QisoulWebPage extends StatefulWidget {
 class _QisoulWebPageState extends State<QisoulWebPage> {
   static const _qisoulUrl = 'https://qisoul.cldery.com/';
 
+  static const List<ExternalOpenTarget> _externalTargets = [
+    ExternalOpenTarget(
+      label: '进入栖所',
+      description: 'qisoul.cldery.com',
+      icon: Icons.nightlight_outlined,
+      url: _qisoulUrl,
+    ),
+  ];
+
   WebViewController? _controller;
   bool _isLoading = true;
   bool _canGoBack = false;
+  WebViewWatchdog? _watch;
 
   @override
   void initState() {
     super.initState();
-    if (!isEmbeddedWebViewSupported) return;
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFFF8F6FF))
-      ..setNavigationDelegate(
+    _watch = WebViewDiag.watch('栖所');
+    if (!isEmbeddedWebViewSupported) {
+      WebViewDiag.record(
+        '栖所',
+        '当前平台 $defaultTargetPlatform 没有内嵌 WebView 实现，改走系统浏览器',
+      );
+      return;
+    }
+    try {
+      final WebViewController controller = WebViewController();
+      controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+      controller.setNavigationDelegate(
         NavigationDelegate(
-          onPageFinished: (_) async {
+          onPageFinished: (url) async {
+            _watch?.seen('onPageFinished url=$url');
             if (!mounted) return;
             setState(() {
               _isLoading = false;
             });
-            final canBack = await _controller!.canGoBack();
+            final canBack = await controller.canGoBack();
             if (mounted) {
               setState(() => _canGoBack = canBack);
             }
           },
           onWebResourceError: (error) {
+            _watch?.failed(
+              'onWebResourceError code=${error.errorCode} '
+              'type=${error.errorType} url=${error.url} '
+              'mainFrame=${error.isForMainFrame} desc=${error.description}',
+            );
             if (!mounted) return;
             setState(() {
               _isLoading = false;
             });
+            _notifyExternalFallback();
           },
         ),
-      )
-      ..loadRequest(Uri.parse(_qisoulUrl));
+      );
+      // ⚠️ 必须走这个包装：setBackgroundColor 在 macOS 上会同步抛异常，
+      // 直接写进级联会让整个 initState 抛、整页变空白（详见 webview_support.dart）
+      applyWebViewBackground(controller, const Color(0xFFF8F6FF));
+      controller.loadRequest(Uri.parse(_qisoulUrl));
+      _controller = controller;
+    } catch (e, stack) {
+      // 建不出来就不留一页空白：记下原因，界面回落到系统浏览器兜底页
+      WebViewDiag.problem('栖所', '创建网页控件失败：$e', stack: stack);
+      _controller = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _watch?.dispose();
+    super.dispose();
+  }
+
+  /// 加载失败不再默默留一片空白，而是直接给一条走得通的路。
+  void _notifyExternalFallback() {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text('网页没能加载出来'),
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(
+          label: '用浏览器打开',
+          onPressed: () => openUrlExternally(_qisoulUrl),
+        ),
+      ),
+    );
   }
 
   @override
@@ -55,117 +112,84 @@ class _QisoulWebPageState extends State<QisoulWebPage> {
     final controller = _controller;
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: Padding(
-          padding: const EdgeInsets.all(8),
-          child: _buildFloatingButton(
-            icon: Icons.arrow_back_rounded,
-            onTap: () {
-              if (controller != null && _canGoBack) {
-                controller.goBack();
-              } else {
-                Navigator.of(context).pop();
-              }
-            },
-          ),
-        ),
-        actions: [
-          if (controller != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: _buildFloatingButton(
-                icon: Icons.refresh_rounded,
-                onTap: () {
-                  setState(() => _isLoading = true);
-                  controller.reload();
-                },
-              ),
-            ),
-        ],
-      ),
-      body: controller == null
-          ? const Padding(
-              padding: EdgeInsets.only(top: 64),
-              child: ExternalBrowserFallback(
-                pageTitle: '栖所',
-                autoOpenIndex: 0,
-                message: '桌面版无法内嵌网页，已用系统浏览器打开栖所。',
-                targets: [
-                  ExternalOpenTarget(
-                    label: '进入栖所',
-                    description: 'qisoul.cldery.com',
-                    icon: Icons.nightlight_outlined,
-                    url: _qisoulUrl,
-                  ),
-                ],
-              ),
-            )
-          : Stack(
-              children: [
-                WebViewWidget(controller: controller),
-                if (_isLoading)
-                  Container(
-                    color: AppTheme.scaffoldBgOf(context),
-                    child: Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(
-                            width: 32,
-                            height: 32,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 3,
-                              color: AppTheme.primaryColor,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            '正在进入栖所...',
-                            style: TextStyle(
-                              color: AppTheme.textSecondaryOf(context),
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
+      // ⚠️ 刻意**不给 appBar**：栏会白占一条高度把网页往下推，而想把它压小
+      // 又会把按钮压扁（见 webview_support.dart 的 WebViewFloatingControls）。
+      // 改成把按钮以浮层形式叠在网页上 —— 栏高度 0，网页占满整屏。
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: controller == null
+                ? const ExternalBrowserFallback(
+                    pageTitle: '栖所',
+                    autoOpenIndex: 0,
+                    message: '桌面版无法内嵌网页，已用系统浏览器打开栖所。',
+                    targets: [
+                      ExternalOpenTarget(
+                        label: '进入栖所',
+                        description: 'qisoul.cldery.com',
+                        icon: Icons.nightlight_outlined,
+                        url: _qisoulUrl,
                       ),
-                    ),
+                    ],
+                  )
+                : WebViewWidget(controller: controller),
+          ),
+          if (controller != null && _isLoading)
+            Positioned.fill(
+              child: Container(
+                color: AppTheme.scaffoldBgOf(context),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 3,
+                          color: AppTheme.primaryColor,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '正在进入栖所...',
+                        style: TextStyle(
+                          color: AppTheme.textSecondaryOf(context),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
                   ),
-              ],
+                ),
+              ),
             ),
-    );
-  }
-
-  /// 半透明浮动圆形按钮 — 低调不抢眼
-  Widget _buildFloatingButton({
-    required IconData icon,
-    required VoidCallback onTap,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: (isDark ? Colors.black : Colors.white).withValues(alpha: 0.5),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 8,
-              offset: const Offset(0, 1),
+          // 浮在网页上的控制条：只有返回 + 重新加载
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: WebViewFloatingControls(
+                pageTitle: '栖所',
+                targets: _externalTargets,
+                onBack: () {
+                  if (controller != null && _canGoBack) {
+                    controller.goBack();
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                },
+                onReload: controller == null
+                    ? null
+                    : () {
+                        setState(() => _isLoading = true);
+                        controller.reload();
+                      },
+              ),
             ),
-          ],
-        ),
-        child: Icon(
-          icon,
-          size: 20,
-          color: isDark ? Colors.white70 : Colors.black54,
-        ),
+          ),
+        ],
       ),
     );
   }
