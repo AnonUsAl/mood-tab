@@ -5,25 +5,30 @@ import '../services/webview_diag.dart';
 import '../theme/app_theme.dart';
 import '../widgets/webview_support.dart';
 
-/// 栖所页面 - WebView 套壳加载 qisoul.cldery.com
-/// 沉浸式设计：透明 AppBar，浮动半透明按钮，让网页内容占主导
-/// Windows / Linux 上没有 WebView 实现，进页面直接调起系统浏览器
-class QisoulWebPage extends StatefulWidget {
-  const QisoulWebPage({super.key});
+/// MHOP 公益心理辅助平台 —— WebView 套壳加载 mhop.cldery.com
+///
+/// 结构与 [QisoulWebPage] 一致：**不给 `AppBar`**，按钮以浮层叠在网页上
+/// （原因见 `webview_support.dart` 的 `WebViewFloatingControls` 文档）。
+/// 网页本体外面套了 [WebViewSafeInset]，否则网页自己的固定顶栏会压住系统时间。
+///
+/// Windows / Linux 上没有内嵌 WebView 实现，进页面直接调起系统浏览器。
+class MhopWebPage extends StatefulWidget {
+  const MhopWebPage({super.key});
 
   @override
-  State<QisoulWebPage> createState() => _QisoulWebPageState();
+  State<MhopWebPage> createState() => _MhopWebPageState();
 }
 
-class _QisoulWebPageState extends State<QisoulWebPage> {
-  static const _qisoulUrl = 'https://qisoul.cldery.com/';
+class _MhopWebPageState extends State<MhopWebPage> {
+  static const _url = 'https://mhop.cldery.com/';
+  static const _pageTitle = '公益心理辅助';
 
   static const List<ExternalOpenTarget> _externalTargets = [
     ExternalOpenTarget(
-      label: '进入栖所',
-      description: 'qisoul.cldery.com',
-      icon: Icons.nightlight_outlined,
-      url: _qisoulUrl,
+      label: '打开 MHOP',
+      description: 'mhop.cldery.com',
+      icon: Icons.handshake_outlined,
+      url: _url,
     ),
   ];
 
@@ -35,10 +40,10 @@ class _QisoulWebPageState extends State<QisoulWebPage> {
   @override
   void initState() {
     super.initState();
-    _watch = WebViewDiag.watch('栖所');
+    _watch = WebViewDiag.watch(_pageTitle);
     if (!isEmbeddedWebViewSupported) {
       WebViewDiag.record(
-        '栖所',
+        _pageTitle,
         '当前平台 $defaultTargetPlatform 没有内嵌 WebView 实现，改走系统浏览器',
       );
       return;
@@ -76,11 +81,11 @@ class _QisoulWebPageState extends State<QisoulWebPage> {
       // ⚠️ 必须走这个包装：setBackgroundColor 在 macOS 上会同步抛异常，
       // 直接写进级联会让整个 initState 抛、整页变空白（详见 webview_support.dart）
       applyWebViewBackground(controller, const Color(0xFFF8F6FF));
-      controller.loadRequest(Uri.parse(_qisoulUrl));
+      controller.loadRequest(Uri.parse(_url));
       _controller = controller;
     } catch (e, stack) {
       // 建不出来就不留一页空白：记下原因，界面回落到系统浏览器兜底页
-      WebViewDiag.problem('栖所', '创建网页控件失败：$e', stack: stack);
+      WebViewDiag.problem(_pageTitle, '创建网页控件失败：$e', stack: stack);
       _controller = null;
     }
   }
@@ -101,7 +106,7 @@ class _QisoulWebPageState extends State<QisoulWebPage> {
         duration: const Duration(seconds: 8),
         action: SnackBarAction(
           label: '用浏览器打开',
-          onPressed: () => openUrlExternally(_qisoulUrl),
+          onPressed: () => openUrlExternally(_url),
         ),
       ),
     );
@@ -114,7 +119,6 @@ class _QisoulWebPageState extends State<QisoulWebPage> {
     return Scaffold(
       // ⚠️ 刻意**不给 appBar**：栏会白占一条高度把网页往下推，而想把它压小
       // 又会把按钮压扁（见 webview_support.dart 的 WebViewFloatingControls）。
-      // 改成把按钮以浮层形式叠在网页上 —— 栏高度 0，网页占满整屏。
       body: Stack(
         children: [
           // ⚠️ 必须包 WebViewSafeInset：Android 15+ 强制 edge-to-edge，
@@ -123,17 +127,10 @@ class _QisoulWebPageState extends State<QisoulWebPage> {
             child: WebViewSafeInset(
               child: controller == null
                   ? const ExternalBrowserFallback(
-                      pageTitle: '栖所',
+                      pageTitle: _pageTitle,
                       autoOpenIndex: 0,
-                      message: '桌面版无法内嵌网页，已用系统浏览器打开栖所。',
-                      targets: [
-                        ExternalOpenTarget(
-                          label: '进入栖所',
-                          description: 'qisoul.cldery.com',
-                          icon: Icons.nightlight_outlined,
-                          url: _qisoulUrl,
-                        ),
-                      ],
+                      message: '桌面版无法内嵌网页，已用系统浏览器打开 MHOP。',
+                      targets: _externalTargets,
                     )
                   : WebViewWidget(controller: controller),
             ),
@@ -156,7 +153,7 @@ class _QisoulWebPageState extends State<QisoulWebPage> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        '正在进入栖所...',
+                        '正在打开 MHOP...',
                         style: TextStyle(
                           color: AppTheme.textSecondaryOf(context),
                           fontSize: 14,
@@ -175,7 +172,7 @@ class _QisoulWebPageState extends State<QisoulWebPage> {
             child: SafeArea(
               bottom: false,
               child: WebViewFloatingControls(
-                pageTitle: '栖所',
+                pageTitle: _pageTitle,
                 targets: _externalTargets,
                 onBack: () {
                   if (controller != null && _canGoBack) {

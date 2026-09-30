@@ -310,6 +310,37 @@ class _ExternalBrowserFallbackState extends State<ExternalBrowserFallback> {
   }
 }
 
+/// 把网页内容躲到系统栏（状态栏 / 横屏刘海）下面。
+///
+/// ## 为什么必须有这一步
+///
+/// 本项目 `targetSdk = 36`，而从 **Android 15（API 35）起系统强制 edge-to-edge** ——
+/// 应用窗口铺到状态栏底下不再是个可选项，`PlatformView` 自然也跟着铺上去。
+///
+/// 网页页又刻意不要 `AppBar`（原因见 [WebViewFloatingControls] 的文档），
+/// 于是 `Stack` 里的 `Positioned.fill(child: WebViewWidget(...))` 会**从 y=0 开始画**：
+/// 网页自己那条 `position: fixed` 的顶栏（站名 / logo / 导航）正好糊在系统时间上，
+/// 表现为「最上方挡住了系统时间」。
+///
+/// ⚠️ 只补**上 / 左 / 右**，**不补 bottom**：
+/// 网页是铺满整屏的，底边再留白只会白挡一条内容（底部交给网页自己的 CSS 处理）。
+///
+/// ⚠️ 浮动控制条 [WebViewFloatingControls] 自己已经包了 `SafeArea`，两边互相独立 ——
+/// 不要因为"已经包了一层"就把这里的去掉，它们管的是两回事
+/// （浮钮要躲开状态栏，**网页本体也要躲开**）。
+///
+/// iOS 同样受益：刘海 / 灵动岛区域也会被避开。
+class WebViewSafeInset extends StatelessWidget {
+  const WebViewSafeInset({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(bottom: false, child: child);
+  }
+}
+
 /// 半透明圆形浮钮 —— 叠在网页上，低调不抢眼。
 class WebViewFloatingButton extends StatelessWidget {
   const WebViewFloatingButton({
@@ -407,8 +438,15 @@ class WebViewFloatingControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 仅 Android 把**顶部**内边距提到 15px：安卓上状态栏与浮钮之间挤得太紧，
+    // 往下挪 5px 呼吸感明显好一些；iOS / macOS 观感没问题，保持 10px 不动。
+    // 底部内边距各平台统一 10px —— 浮条是叠加在网页上的，底边多留白只会白挡内容。
+    final bool isAndroid =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+    final double topPadding = isAndroid ? 15 : 10;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: EdgeInsets.fromLTRB(12, topPadding, 12, 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [

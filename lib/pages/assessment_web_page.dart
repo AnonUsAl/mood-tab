@@ -159,15 +159,19 @@ class _AssessmentWebPageState extends State<AssessmentWebPage> {
       // 不给 appBar：网页铺满整屏，按钮以浮层叠在上面（与栖所 / 关于作者统一）。
       body: Stack(
         children: [
+          // ⚠️ 必须包 WebViewSafeInset：Android 15+ 强制 edge-to-edge，
+          // 少了它网页自己的固定顶栏会顶到 y=0、压住系统时间（详见 WebViewSafeInset）
           Positioned.fill(
-            child: controller == null
-                ? ExternalBrowserFallback(
-                    pageTitle: '心理测评',
-                    autoOpenIndex: _browserAutoOpenIndex,
-                    message: '桌面版无法内嵌网页，已用系统浏览器打开所选版本。',
-                    targets: _externalTargets,
-                  )
-                : WebViewWidget(controller: controller),
+            child: WebViewSafeInset(
+              child: controller == null
+                  ? ExternalBrowserFallback(
+                      pageTitle: '心理测评',
+                      autoOpenIndex: _browserAutoOpenIndex,
+                      message: '桌面版无法内嵌网页，已用系统浏览器打开所选版本。',
+                      targets: _externalTargets,
+                    )
+                  : WebViewWidget(controller: controller),
+            ),
           ),
           if (controller != null && _isLoading)
             Positioned.fill(

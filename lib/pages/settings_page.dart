@@ -22,6 +22,7 @@ import 'about_page.dart';
 import 'software_info_page.dart';
 import 'assessment_web_page.dart';
 import 'qisoul_web_page.dart';
+import 'mhop_web_page.dart';
 import 'team_page.dart';
 import 'crisis_support_page.dart';
 import 'urge_log_page.dart';
@@ -995,6 +996,18 @@ class _SettingsPageState extends State<SettingsPage> {
           onTap: () {
             Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const QisoulWebPage()));
+          },
+        ),
+        _buildActionTile(
+          icon: Icons.handshake_outlined,
+          iconColor: const Color(0xFF4DB6AC),
+          title: '公益心理辅助',
+          subtitle: 'MHOP 平台 · 免费的心理支持',
+          isFirst: false,
+          isLast: false,
+          onTap: () {
+            Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const MhopWebPage()));
           },
         ),
         _buildActionTile(

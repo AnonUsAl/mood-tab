@@ -120,18 +120,25 @@ class _AboutPageState extends State<AboutPage> {
     final controller = _controller;
 
     return Scaffold(
+      // ⚠️ 与下面 loading 覆盖层同色：网页被 WebViewSafeInset 上移后，
+      // 状态栏那条会露出 Scaffold 底色，不同色的话加载前后会「跳一下」
+      backgroundColor: const Color(0xFF0A0D12),
       // 不给 appBar：网页铺满整屏，按钮以浮层叠在上面（与栖所统一）。
       body: Stack(
         children: [
+          // ⚠️ 必须包 WebViewSafeInset：Android 15+ 强制 edge-to-edge，
+          // 少了它网页自己的固定顶栏会顶到 y=0、压住系统时间（详见 WebViewSafeInset）
           Positioned.fill(
-            child: controller == null
-                ? const ExternalBrowserFallback(
-                    pageTitle: '关于作者',
-                    autoOpenIndex: 0,
-                    message: '桌面版无法内嵌网页，已用系统浏览器打开作者主页。',
-                    targets: _externalTargets,
-                  )
-                : WebViewWidget(controller: controller),
+            child: WebViewSafeInset(
+              child: controller == null
+                  ? const ExternalBrowserFallback(
+                      pageTitle: '关于作者',
+                      autoOpenIndex: 0,
+                      message: '桌面版无法内嵌网页，已用系统浏览器打开作者主页。',
+                      targets: _externalTargets,
+                    )
+                  : WebViewWidget(controller: controller),
+            ),
           ),
           if (controller != null && _isLoading)
             Positioned.fill(
