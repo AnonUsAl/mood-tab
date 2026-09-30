@@ -1,0 +1,94 @@
+name: Build Linux
+
+# Linux 桌面端构建。Flutter 不支持从 macOS / Windows 交叉编译 Linux，
+# 只能跑在 Linux 上（需要 GTK3 头文件 + clang / cmake / ninja），所以放 CI。
+# 手动触发：gh workflow run build-linux.yml
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: 安装 Linux 桌面构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            liblzma-dev
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      # 桌面端（Windows / Linux）没有 sqflite 实现，走 package:sqlite3 的 FFI 工厂。
+      # 该包的原生库由 Dart native assets 构建钩子产出，必须显式开启，
+      # 否则会在运行时抛「找不到 libsqlite3.so」，且没有运行时兜底。
+      - name: 开启 native assets
+        run: flutter config --enable-native-assets
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: 构建 Linux release
+        run: flutter build linux --release
+
+      - name: 读取版本号
+        id: ver
+        run: |
+          VER=$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "构建版本：v$VER"
+
+      - name: 检查产物
+        working-directory: build/linux/x64/release/bundle
+        run: |
+          echo "=== bundle 结构 ==="
+          ls -la
+          echo "=== lib ==="
+          ls -la lib
+          echo "=== data ==="
+          ls -la data
+          echo "=== 可执行文件 ==="
+          file mood_tab
+          echo
+          echo "=== 关键校验：libsqlite3.so 必须在包内 ==="
+          if [ -f lib/libsqlite3.so ]; then
+            echo "✓ lib/libsqlite3.so 存在"
+          else
+            echo "✗ 缺少 lib/libsqlite3.so —— Linux 版将无法打开本地数据库"
+            echo "  （database_factory_io.dart 在 Linux 上依赖 package:sqlite3，"
+            echo "   且该包 3.x 无 DynamicLibrary.open 运行时兜底）"
+            exit 1
+          fi
+
+      - name: 打包
+        run: |
+          cd build/linux/x64/release
+          NAME="MoodTab_v${{ steps.ver.outputs.version }}_linux_x64.tar.gz"
+          tar -czf "$NAME" bundle
+          mv "$NAME" "$GITHUB_WORKSPACE/"
+          echo "=== 包信息与校验值 ==="
+          ls -la "$GITHUB_WORKSPACE/$NAME"
+          (cd "$GITHUB_WORKSPACE" && sha256sum "$NAME")
+
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MoodTab_v${{ steps.ver.outputs.version }}_linux_x64
+          path: MoodTab_v${{ steps.ver.outputs.version }}_linux_x64.tar.gz
+          if-no-files-found: error
