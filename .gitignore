@@ -63,6 +63,9 @@ unlinked_spec.ds
 **/android/**/GeneratedPluginRegistrant.java
 **/android/key.properties
 *.jks
+# Kotlin 构建缓存（Kotlin 2.4.0 起会在 android/ 下落 .kotlin/，纯缓存不入库）
+.kotlin/
+**/android/.kotlin/
 
 # iOS/XCode related
 **/ios/**/*.mode1v3
